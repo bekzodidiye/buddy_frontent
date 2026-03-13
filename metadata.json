@@ -1,8 +1,0 @@
-{
-  "name": "Remix: Remix: Remix: Buddy Team Portal",
-  "description": "A high-performance community portal for Buddy Team featuring an interactive AI assistant, team showcase, and project highlights.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}
