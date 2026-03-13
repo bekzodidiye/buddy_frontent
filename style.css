@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global Styles */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #0a0a0c;
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+
+/* Responsive Utilities */
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Touch-friendly tap targets */
+button,
+a {
+    touch-action: manipulation;
+}
+
+/* Prevent horizontal overflow globally */
+* {
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+/* Safe viewport height for mobile browsers */
+.min-h-screen {
+    min-height: 100dvh;
+}
+
+/* Form Elements Reset */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+option {
+    background-color: #1a1a1e !important;
+    color: white !important;
+    padding: 12px;
+}
+
+select {
+    color-scheme: dark;
+}
+
+
+
+/* Hide horizontal scroll for inner content unless strictly necessary */
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.overflow-x-auto {
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
