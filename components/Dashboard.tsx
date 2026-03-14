@@ -1,5 +1,5 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
    Trash2, Edit2, Save, X, Quote, Plus, Settings, Activity, Users, Loader2,
    ChevronLeft, ChevronRight, Calendar, Camera, Maximize2,
@@ -23,6 +23,7 @@ interface DashboardProps {
    seasons: Season[];
    notifications?: Notification[];
    onMarkRead?: (id: string) => void;
+   onMarkAllRead?: () => void;
    onAssignStudent?: (studentId: string) => void;
    onUnassignStudent?: (studentId: string) => void;
    onlineUsers?: Set<string>;
@@ -43,11 +44,29 @@ const Dashboard: React.FC<DashboardProps> = ({
    seasons,
    notifications = [],
    onMarkRead,
+   onMarkAllRead,
    onAssignStudent,
    onUnassignStudent,
    onlineUsers
 }) => {
-   const [activeTab, setActiveTab] = useState<'panel' | 'profile' | 'notifications'>(() => (localStorage.getItem('buddy_dashboard_tab') as any) || 'panel');
+   const { activeTab: urlTab } = useParams<{ activeTab: string }>();
+   const navigate = useNavigate();
+   
+   const [activeTab, setActiveTab] = useState<'panel' | 'profile' | 'notifications'>(
+      (urlTab as any) || (localStorage.getItem('buddy_dashboard_tab') as any) || 'panel'
+   );
+
+   useEffect(() => {
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTab(urlTab as any);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (tab: 'panel' | 'profile' | 'notifications') => {
+    setActiveTab(tab);
+    navigate(`/dashboard/${tab}`);
+    localStorage.setItem('buddy_dashboard_tab', tab);
+  };
    const [selectedWeek, setSelectedWeek] = useState(() => Number(localStorage.getItem('buddy_dashboard_week')) || 1);
    const [selectedSeason, setSelectedSeason] = useState(() => localStorage.getItem('buddy_dashboard_season') || activeSeasonId);
    const [isAddingStudent, setIsAddingStudent] = useState(false);
@@ -174,10 +193,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       skills: user?.skills?.join(', ') || '',
       socialLinks: user?.socialLinks || []
    });
-   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
    const handleSaveProfile = async () => {
-      setIsSavingProfile(true);
       
       // Social linklarini tekshirish — agar http bo'lmasa https qo'shish
       const validatedSocialLinks = (profileForm.socialLinks || []).map(link => {
@@ -206,7 +223,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       } catch (err) {
          console.error("Profile save error", err);
       } finally {
-         setIsSavingProfile(false);
       }
    };
 
@@ -452,44 +468,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       <section id="dashboard" className="py-10 md:py-20 bg-[#0a0a0c] min-h-screen">
          <div className="max-w-[1800px] mx-auto px-4 lg:px-10">
 
-            {/* Navigation Tabs - Refined for better fit */}
-            <div className="flex justify-center mb-8 md:mb-16">
-               <div className="inline-flex p-1 bg-white/5 rounded-2xl md:rounded-[2.5rem] border border-white/5 backdrop-blur-2xl shadow-2xl flex-wrap justify-center gap-1">
-                  {/* SWAPPED: Notifications is now first */}
-                  <button
-                     onClick={() => setActiveTab('notifications')}
-                     className={`flex items-center space-x-3 px-6 md:px-8 py-3 md:py-4 rounded-3xl text-[10px] font-black transition-all relative ${activeTab === 'notifications' ? 'bg-purple-600 text-white shadow-2xl' : 'text-slate-500 hover:text-white'
-                        }`}
-                  >
-                     <Bell className="w-4 h-4" />
-                     <span className="uppercase tracking-widest">Bildirishnomalar</span>
-                     {unreadCount > 0 && (
-                        <span className="absolute top-2 right-2 w-5 h-5 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-black border-2 border-[#0a0a0c]">
-                           {unreadCount}
-                        </span>
-                     )}
-                  </button>
-
-                  {/* SWAPPED: Monitoring is now second */}
-                  <button
-                     onClick={() => setActiveTab('panel')}
-                     className={`flex items-center space-x-3 px-6 md:px-8 py-3 md:py-4 rounded-3xl text-[10px] font-black transition-all ${activeTab === 'panel' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-slate-500 hover:text-white'
-                        }`}
-                  >
-                     <Activity className="w-4 h-4" />
-                     <span className="uppercase tracking-widest">Monitoring</span>
-                  </button>
-
-                  <button
-                     onClick={() => setActiveTab(activeTab === 'profile' ? 'panel' : 'profile')}
-                     className={`flex items-center space-x-2 md:space-x-3 px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-3xl text-[9px] md:text-[10px] font-black transition-all ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-slate-500 hover:text-white'
-                        }`}
-                  >
-                     <Settings className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                     <span className="uppercase tracking-widest">Profil</span>
-                  </button>
-               </div>
-            </div>
 
             {activeTab === 'profile' && (
                <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-500">
@@ -717,11 +695,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                         
                         {/* Buttons moved below motivation quote */}
                         <div className="mt-10 flex flex-col sm:flex-row justify-end gap-3 w-full border-t border-white/5 pt-8">
-                           <button onClick={() => setIsEditingProfile(false)} disabled={isSavingProfile} className="w-full sm:w-auto bg-[#1a1a1f] hover:bg-[#25252b] text-slate-400 hover:text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                           <button onClick={() => setIsEditingProfile(false)} className="w-full sm:w-auto bg-[#1a1a1f] hover:bg-[#25252b] text-slate-400 hover:text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center">
                               BEKOR
                            </button>
-                           <button onClick={handleSaveProfile} disabled={isSavingProfile} className="w-full sm:w-auto bg-[#00c288] hover:bg-[#00a876] text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-[#00c288]/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                              {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                           <button onClick={handleSaveProfile} className="w-full sm:w-auto bg-[#00c288] hover:bg-[#00a876] text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-[#00c288]/10">
+                              <Save className="w-4 h-4" />
                               Saqlash
                            </button>
                         </div>
@@ -738,8 +716,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                            </div>
 
                            <h2 className="text-3xl font-black text-white tracking-tight mb-1 relative z-10 break-words w-full">{user?.name}</h2>
-                           <p className="text-slate-500 font-bold text-sm mb-3 relative z-10 truncate w-full">@{user?.username}</p>
-                           <p className="text-indigo-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-6 relative z-10 px-4 py-1.5 bg-indigo-500/5 rounded-full border border-indigo-500/10 break-words w-full">{user?.field || 'Soha kiritilmagan'}</p>
+                           <p className="text-indigo-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-2 relative z-10 px-4 py-1.5 bg-indigo-500/5 rounded-full border border-indigo-500/10 break-words w-full">{user?.field || 'Soha kiritilmagan'}</p>
+                           <p className="text-slate-500 font-bold text-sm mb-6 relative z-10 truncate w-full">@{user?.username}</p>
 
                            <div className="flex flex-wrap justify-center gap-2 mb-6 relative z-10">
                               {user?.skills?.map((s, index) => (
@@ -1364,7 +1342,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                      <h2 className="text-4xl font-black text-white flex items-center gap-4">
                         <Bell className="w-10 h-10 text-purple-400" /> Bildirishnomalar
                      </h2>
-                     <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                     <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-6">
+                        {unreadCount > 0 && (
+                           <button 
+                              onClick={onMarkAllRead}
+                              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-indigo-400 hover:text-indigo-300 rounded-xl border border-white/5 transition-all"
+                           >
+                              Barchasini o'qilgan deb belgilash
+                           </button>
+                        )}
                         Jami {filteredNotifications.length} ta xabar
                      </span>
                   </div>
@@ -1744,13 +1730,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
          </div>
 
-         {/* Profilni Saqlayotganda Overlay Loader */}
-         {isSavingProfile && (
-            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0c]/80 backdrop-blur-sm">
-               <Loader2 className="w-10 h-10 text-[#00c288] animate-spin mb-4" />
-               <p className="text-[#00c288] font-bold text-sm tracking-widest uppercase">Ma'lumotlar saqlanmoqda...</p>
-            </div>
-         )}
       </section>
    );
 };

@@ -137,7 +137,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     type: 'info' as Notification['type'],
     targetRole: 'all' as Notification['targetRole']
   });
-  const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [seasonToDelete, setSeasonToDelete] = useState<string | null>(null);
 
@@ -177,7 +176,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     };
   }, [selectedUserForView]);
 
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState(() => {
     const saved = localStorage.getItem('buddy_admin_notification_settings');
     return saved ? JSON.parse(saved) : {
@@ -299,14 +297,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleSaveNotificationSettings = async () => {
-    setIsSavingSettings(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSavingSettings(false);
+    // Local storage ga saqlash useEffect'da bor, backend bo'lsa onUpdateSettings chaqiriladi
   };
 
   const handleSendMessage = async () => {
     if (!messageForm.title || !messageForm.message) return;
-    setIsSending(true);
     setSendResult(null);
     try {
       await onSendNotification({
@@ -323,14 +318,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       console.error('Xabar yuborishda xatolik:', e);
       setSendResult({ ok: false, msg: `Xatolik: ${e?.response?.data ? JSON.stringify(e.response.data) : e.message}` });
     } finally {
-      setIsSending(false);
       setTimeout(() => setSendResult(null), 4000);
     }
   };
 
   const handleSendDirectMessage = async () => {
     if (!selectedUserForView || !directMessageForm.title || !directMessageForm.message) return;
-    setIsSending(true);
     setSendResult(null);
     try {
       await onSendNotification({
@@ -349,14 +342,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       console.error('Shaxsiy xabar yuborishda xatolik:', e);
       setSendResult({ ok: false, msg: `Xatolik: ${e?.response?.data ? JSON.stringify(e.response.data) : e.message}` });
     } finally {
-      setIsSending(false);
       setTimeout(() => setSendResult(null), 4000);
     }
   };
 
   const handleStartNewSeasonInternal = async () => {
     try {
-      setIsSending(true);
       setSendResult(null);
       await onStartNewSeason();
       setSendResult({ ok: true, msg: 'Yangi mavsum muvaffaqiyatli boshlandi! ✓' });
@@ -364,7 +355,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       console.error('Mavsum boshlashda xatolik:', e);
       setSendResult({ ok: false, msg: `Mavsumda xatolik: ${e?.response?.data ? JSON.stringify(e.response.data) : e.message}` });
     } finally {
-      setIsSending(false);
       setTimeout(() => setSendResult(null), 4000);
     }
   };
@@ -382,27 +372,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <section className="py-6 md:py-10 bg-[#0a0a0c] min-h-screen">
       <div className="max-w-[1700px] mx-auto px-3 sm:px-4 lg:px-10">
-        {/* Top Branding & Exit */}
-        <div className="flex items-center justify-between mb-12">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-              <ShieldCheck className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-2xl font-black text-white tracking-tighter">
-              Buddy<span className="text-slate-700">Panel</span>
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3 invisible">
-            <button
-              className="group flex items-center gap-3 px-6 py-3 bg-white/5 rounded-2xl border border-white/5 transition-all"
-            >
-              <span className="text-[10px] font-black uppercase text-slate-500">Saytga Qaytish</span>
-              <ExternalLink className="w-4 h-4 text-slate-600" />
-            </button>
-          </div>
-        </div>
-
         {/* ===== TOP CENTERED HEADER SECTION ===== */}
         <div className="flex flex-col items-center justify-center text-center mb-16">
           <div className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl mb-6">
@@ -418,117 +387,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           <p className="text-slate-500 max-w-full sm:max-w-2xl text-xs sm:text-sm md:text-lg leading-relaxed font-bold mb-10 break-words w-full px-4">
             {tabLabels[activeTab].desc}
           </p>
-
-          <div className="hidden min-[1111px]:block w-full overflow-x-auto no-scrollbar">
-            <div className="flex justify-center gap-2 p-2 bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 w-max mx-auto">
-              {(['stats', 'monitoring', 'users', 'requests', 'seasons', 'messages', 'settings'] as const).map(tab => (
-                <button key={tab} onClick={() => handleTabChange(tab)}
-                  className={`shrink-0 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap ${activeTab === tab ? "bg-indigo-600 text-white shadow-xl scale-105" : "text-slate-500 hover:text-white hover:bg-white/5"}`}
-                >
-                  {tabLabels[tab].icon}
-                  {tab.toUpperCase()}
-                  {tab === 'requests' && stats.pendingCount > 0 && (
-                    <span className='w-5 h-5 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full animate-pulse'>
-                      {stats.pendingCount}
-                    </span>
-                  )}
-                  {tab === 'messages' && unreadMessagesCount > 0 && (
-                    <span className='w-5 h-5 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full animate-pulse'>
-                      {unreadMessagesCount}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
-
-        {/* ===== MOBILE SIDE PANEL TRIGGER (visible only on small screens) ===== */}
-        {!isMobileNavOpen && (
-          <button
-            onClick={() => setIsMobileNavOpen(true)}
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-[150] py-4 pr-2 pl-3 bg-indigo-600/90 hover:bg-indigo-600 border-r border-t border-b border-indigo-500/30 backdrop-blur-md rounded-r-2xl text-white min-[1111px]:hidden shadow-2xl transition-all duration-300 group"
-          >
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            {stats.pendingCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full border border-[#0a0a0c]">
-                {stats.pendingCount}
-              </span>
-            )}
-          </button>
-        )}
-
-        {/* ===== MOBILE SIDE NAV DRAWER ===== */}
-        <AnimatePresence>
-          {isMobileNavOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm min-[1111px]:hidden"
-              onClick={() => setIsMobileNavOpen(false)}
-            >
-              <motion.div
-                initial={{ x: '-100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                className="absolute top-0 left-0 h-full w-[75vw] max-w-[300px] bg-[#0d0d10] border-r border-white/10 p-6 shadow-2xl flex flex-col"
-                onClick={e => e.stopPropagation()}
-              >
-                {/* Panel Header */}
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-0.5">Admin</p>
-                    <h3 className="text-lg font-black text-white tracking-tight">BuddyPanel</h3>
-                  </div>
-                  <button
-                    onClick={() => setIsMobileNavOpen(false)}
-                    className="p-2 bg-white/5 text-slate-400 hover:text-white rounded-xl border border-white/10 transition-all"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Nav Items */}
-                <div className="flex flex-col gap-2 flex-1">
-                  {(['stats', 'monitoring', 'users', 'requests', 'seasons', 'messages', 'settings'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => { handleTabChange(tab); setIsMobileNavOpen(false); }}
-                      className={`flex items-center justify-between px-4 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all text-left ${activeTab === tab
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                        }`}
-                    >
-                      <span>{tabLabels[tab].title}</span>
-                      {tab === 'requests' && stats.pendingCount > 0 && (
-                        <span className="w-5 h-5 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full">
-                          {stats.pendingCount}
-                        </span>
-                      )}
-                      {tab === 'messages' && unreadMessagesCount > 0 && (
-                        <span className="w-5 h-5 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full">
-                          {unreadMessagesCount}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Close handle on right edge */}
-                <button
-                  onClick={() => setIsMobileNavOpen(false)}
-                  className="absolute top-1/2 -right-10 -translate-y-1/2 py-4 px-2 bg-[#0d0d10] border border-white/10 border-l-0 rounded-r-2xl text-white shadow-xl"
-                >
-                  <ChevronRight className="w-4 h-4 rotate-180" />
-                </button>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-
         {activeTab === 'stats' && (
           <div className="animate-in fade-in duration-500 space-y-12">
 
@@ -1214,7 +1073,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                   <button
                     onClick={handleStartNewSeasonInternal}
-                    disabled={isSending}
                     className="group/btn relative w-full overflow-hidden rounded-2xl bg-white py-5 text-center font-black uppercase tracking-widest text-indigo-950 shadow-xl transition-all hover:scale-[1.02] active:scale-95"
                   >
                     <span className="relative z-10 flex items-center justify-center gap-3">
@@ -1334,10 +1192,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <button
                   onClick={handleSendMessage}
-                  disabled={isSending || !messageForm.title || !messageForm.message}
+                  disabled={!messageForm.title || !messageForm.message}
                   className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-3xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  <Send className="w-5 h-5" />
                   Xabarni Yuborish
                 </button>
 
@@ -1474,10 +1332,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                   <button
                     onClick={handleSaveNotificationSettings}
-                    disabled={isSavingSettings}
                     className="w-full mt-6 py-4 bg-white text-indigo-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
                   >
-                    {isSavingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <Save className="w-4 h-4" />
                     Sozlamalarni Saqlash
                   </button>
                 </div>
@@ -1628,8 +1485,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <label className="text-[9px] font-black uppercase text-slate-600 tracking-widest ml-1">Xabar matni</label>
                               <textarea className="w-full bg-[#1a1a1e] border border-white/5 rounded-2xl py-4 px-5 text-white text-sm outline-none focus:border-indigo-600 transition-all h-32 resize-none" placeholder="Bu yerga yozing..." value={directMessageForm.message} onChange={e => setDirectMessageForm({ ...directMessageForm, message: e.target.value })} />
                             </div>
-                            <button onClick={handleSendDirectMessage} disabled={isSending || !directMessageForm.title || !directMessageForm.message} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50">
-                              {isSending ? <Clock className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}Yuborish
+                            <button onClick={handleSendDirectMessage} disabled={!directMessageForm.title || !directMessageForm.message} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50">
+                              <Send className="w-5 h-5" /> Yuborish
                             </button>
                             <button onClick={() => setIsDirectMessaging(false)} className="w-full py-4 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all">Bekor qilish</button>
                           </div>
@@ -1748,39 +1605,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         )}
 
-        {/* Delete Season Confirmation Modal */}
-        {seasonToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-[#0a0a0c] border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <AlertTriangle className="w-8 h-8 text-red-500" />
-                </div>
-                <h3 className="text-2xl font-black text-white mb-2">Mavsumni o'chirish</h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                  Haqiqatan ham bu mavsumni o'chirmoqchimisiz? Barcha bog'liq ma'lumotlar saqlanib qoladi, lekin mavsum ro'yxatdan o'chiriladi.
-                </p>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setSeasonToDelete(null)}
-                    className="flex-1 py-4 px-6 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-colors"
-                  >
-                    Bekor qilish
-                  </button>
-                  <button
-                    onClick={() => {
-                      onDeleteSeason(seasonToDelete);
-                      setSeasonToDelete(null);
-                    }}
-                    className="flex-1 py-4 px-6 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition-colors"
-                  >
-                    O'chirish
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </section >
   );

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Zap, AlertTriangle, Trash2, CheckCircle, Info } from 'lucide-react';
 import Navbar from './components/Navbar';
 import HomeView from './components/HomeView';
 import Features from './components/Features';
@@ -60,6 +60,39 @@ const App: React.FC = () => {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
+  const [isDataSaving, setIsDataSaving] = useState(false);
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'info' | 'success';
+    confirmText?: string;
+    isAlert?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { },
+    type: 'info',
+    isAlert: false
+  });
+
+  const confirmThis = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'info' | 'success' = 'danger', confirmText?: string, isAlert: boolean = false) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+      type,
+      confirmText,
+      isAlert
+    });
+  };
 
   // Data states
   const [allStudentsData, setAllStudentsData] = useState<StudentProgress[]>([]);
@@ -119,9 +152,13 @@ const App: React.FC = () => {
     }
   }, [location]);
 
-  const handleNavigate = (page: Page) => {
+  const handleNavigate = (page: Page, tab?: string) => {
     setCurrentPage(page);
-    navigate(`/${page === 'home' ? '' : page}`);
+    if (tab) {
+      navigate(`/${page}/${tab}`);
+    } else {
+      navigate(`/${page === 'home' ? '' : page}`);
+    }
   };
 
   // Persistence Effects
@@ -320,35 +357,57 @@ const App: React.FC = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm("Haqiqatan ham ushbu foydalanuvchini o'chirib tashlamoqchimisiz?")) return;
-    try {
-      await api.delete(`users/${userId}/`);
-      setAllUsers(prev => prev.filter(u => u.id !== userId));
-      setAllStudentsData(prev => prev.filter(s => s.curatorId !== userId && s.studentId !== userId));
-    } catch (e) {
-      console.error("Foydalanuvchini o'chirishda xatolik:", e);
-    }
+    confirmThis(
+      "Foydalanuvchini o'chirish",
+      "Haqiqatan ham ushbu foydalanuvchini o'chirib tashlamoqchimisiz? Ushbu amalni ortga qaytarib bo'lmaydi.",
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.delete(`users/${userId}/`);
+          setAllUsers(prev => prev.filter(u => u.id !== userId));
+          setAllStudentsData(prev => prev.filter(s => s.curatorId !== userId && s.studentId !== userId));
+        } catch (e) {
+          console.error("Foydalanuvchini o'chirishda xatolik:", e);
+        } finally {
+          setIsDataSaving(false);
+        }
+      }
+    );
   };
 
   const handleChangeRole = async (userId: string, role: 'student' | 'curator' | 'admin') => {
-    try {
-      await api.patch(`admin/users/${userId}/role/`, { role });
-      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
-    } catch (e) {
-      console.error("Rolni o'zgartirishda xatolik:", e);
-    }
+    confirmThis(
+      "Rolni o'zgartirish",
+      `Foydalanuvchi rolini ${role.toUpperCase()} ga o'zgartirmoqchimisiz?`,
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.patch(`admin/users/${userId}/role/`, { role });
+          setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+        } catch (e) {
+          console.error("Rolni o'zgartirishda xatolik:", e);
+        } finally {
+          setIsDataSaving(false);
+        }
+      },
+      'info'
+    );
   };
 
   const handleUpdateStudent = async (updatedStudent: StudentProgress) => {
+    setIsDataSaving(true);
     try {
       const res = await api.patch(`monitoring/${updatedStudent.id}/`, updatedStudent);
       setAllStudentsData(prev => prev.map(s => s.id === updatedStudent.id ? res.data : s));
     } catch (err) {
       console.error("Failed to update student progress:", err);
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleAddProgress = async (p: StudentProgress) => {
+    setIsDataSaving(true);
     try {
       const payload = {
         curatorId: p.curatorId,
@@ -367,22 +426,31 @@ const App: React.FC = () => {
       setAllStudentsData(prev => [...prev, res.data]);
     } catch (err) {
       console.error("Failed to add progress:", err);
-      // fallback: add to local state anyway
-      setAllStudentsData(prev => [...prev, { ...p, seasonId: p.seasonId || activeSeasonId }]);
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleRemoveProgress = async (id: string) => {
-    try {
-      await api.delete(`monitoring/${id}/`);
-      setAllStudentsData(prev => prev.filter(s => s.id !== id));
-    } catch (err) {
-      console.error("Failed to remove progress:", err);
-      setAllStudentsData(prev => prev.filter(s => s.id !== id));
-    }
+    confirmThis(
+      "Monitoringni o'chirish",
+      "Haqiqatan ham ushbu monitoring ma'lumotini o'chirmoqchimisiz?",
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.delete(`monitoring/${id}/`);
+          setAllStudentsData(prev => prev.filter(s => s.id !== id));
+        } catch (err) {
+          console.error("Failed to remove progress:", err);
+        } finally {
+          setIsDataSaving(false);
+        }
+      }
+    );
   };
 
   const handleApproveUser = async (userId: string) => {
+    setIsDataSaving(true);
     try {
       await api.post(`admin/users/${userId}/approve/`);
       setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isApproved: true, status: 'active' } : u));
@@ -391,10 +459,13 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleChangeUserStatus = async (userId: string, status: 'active' | 'inactive' | 'pending') => {
+    setIsDataSaving(true);
     try {
       await api.patch(`admin/users/${userId}/status/`, { status });
       setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, status } : u));
@@ -403,11 +474,13 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleUpdateProfile = async (data: Partial<UserData>) => {
-    if (!user) return false;
+    setIsDataSaving(true);
     try {
       const res = await api.patch(`users/${user.id}/`, data);
       setUser(res.data);
@@ -416,12 +489,15 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error(e);
       const errorMsg = e.response?.data ? JSON.stringify(e.response.data) : "Xatolik yuz berdi";
-      alert("Profilni yangilashda xatolik: " + errorMsg);
+      confirmThis("Xatolik", "Profilni yangilashda xatolik yuz berdi: " + errorMsg, () => {}, "danger", "TUSHUNARLI", true);
       return false;
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleAddHighlight = async (h: any) => {
+    setIsDataSaving(true);
     try {
       const form = new FormData();
       form.append('curatorId', h.curatorId);
@@ -442,43 +518,67 @@ const App: React.FC = () => {
       setWeeklyHighlights(prev => [...prev, res.data]);
     } catch (e) {
       console.error("Rasmni saqlashda xatolik:", e);
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleRemoveHighlight = async (id: string) => {
-    try {
-      await api.delete(`highlights/${id}/`);
-      setWeeklyHighlights(prev => prev.filter(h => h.id !== id));
-    } catch (e) {
-      console.error("Rasmni o'chirishda xatolik:", e);
-    }
+    confirmThis(
+      "Rasmni o'chirish",
+      "Ushbu rasmni o'chirib tashlamoqchimisiz?",
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.delete(`highlights/${id}/`);
+          setWeeklyHighlights(prev => prev.filter(h => h.id !== id));
+        } catch (e) {
+          console.error("Rasmni o'chirishda xatolik:", e);
+        } finally {
+          setIsDataSaving(false);
+        }
+      }
+    );
   };
 
   const handleUpdateSeason = async (seasonId: string, updates: Partial<Season>) => {
+    setIsDataSaving(true);
     try {
       await api.patch(`seasons/${seasonId}/`, updates);
       setSeasons(prev => prev.map(s => s.id === seasonId ? { ...s, ...updates } : s));
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsDataSaving(false);
     }
   };
 
   const handleDeleteSeason = async (seasonId: string) => {
-    try {
-      await api.delete(`seasons/${seasonId}/`);
-      setSeasons(prev => {
-        const newSeasons = prev.filter(s => s.id !== seasonId);
-        if (activeSeasonId === seasonId && newSeasons.length > 0) {
-          setActiveSeasonId(newSeasons[newSeasons.length - 1].id);
+    confirmThis(
+      "Mavsumni o'chirish",
+      "Mavsumni o'chirish barcha unga tegishli monitoring va rasmlarni ham o'chirishi mumkin. Haqiqatan ham o'chirmoqchimisiz?",
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.delete(`seasons/${seasonId}/`);
+          setSeasons(prev => {
+            const newSeasons = prev.filter(s => s.id !== seasonId);
+            if (activeSeasonId === seasonId && newSeasons.length > 0) {
+              setActiveSeasonId(newSeasons[newSeasons.length - 1].id);
+            }
+            return newSeasons;
+          });
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsDataSaving(false);
         }
-        return newSeasons;
-      });
-    } catch (e) {
-      console.error(e);
-    }
+      }
+    );
   };
 
   const handleStartNewSeason = async (durationInMonths: number = 3) => {
+    setIsDataSaving(true);
     try {
       const nextNumber = seasons.length > 0 ? Math.max(...seasons.map(s => s.number)) + 1 : 1;
       const res = await api.post("seasons/", {
@@ -489,7 +589,6 @@ const App: React.FC = () => {
       });
 
       const newSeasonData = res.data;
-
       const nextSeason: Season = {
         id: newSeasonData.id,
         number: newSeasonData.number,
@@ -513,6 +612,7 @@ const App: React.FC = () => {
         sender: 'Admin'
       });
     } catch (e) { console.error(e) }
+    finally { setIsDataSaving(false); }
   };
 
   const handleAddNotification = async (notif: Partial<Notification>) => {
@@ -531,87 +631,123 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMarkNotificationAsRead = async (id: string) => {
+  const handleMarkNotificationAsRead = async (id: string | 'all') => {
     try {
-      await api.patch(`notifications/${id}/`, { isRead: true });
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      if (id === 'all') {
+        const unreadIds = filteredNotifications.filter(n => !n.isRead).map(n => n.id);
+        if (unreadIds.length === 0) return;
+        
+        // Parallel update on backend if endpoint supports it, otherwise individual. 
+        // For now, let's update locally and assume backend handle or do individual calls.
+        // Actually, simple way is loop or a bulk endpoint if available.
+        // Let's assume we can loop or better, just update state and do one call if backend supports.
+        // If not, we'll do individual. 
+        await Promise.all(unreadIds.map(uid => api.patch(`notifications/${uid}/`, { isRead: true })));
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      } else {
+        await api.patch(`notifications/${id}/`, { isRead: true });
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      }
     } catch (e) {
-      console.error("Xabarni o'qilgan deb belgilashda xatolik:", e);
+      console.error("Xabarlarni o'qilgan deb belgilashda xatolik:", e);
     }
   };
 
   const handleAssignStudent = async (studentId: string) => {
-    if (!user) return;
-    try {
-      await api.patch(`users/${studentId}/`, { assignedCuratorId: user.id });
-      setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, assignedCuratorId: user.id } : u));
+    confirmThis(
+      "O'quvchini qo'shish",
+      "Ushbu o'quvchini jamoangizga qo'shmoqchimisiz?",
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.patch(`users/${studentId}/`, { assignedCuratorId: user!.id });
+          setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, assignedCuratorId: user!.id } : u));
 
-      const student = allUsers.find(u => u.id === studentId);
-      if (student) {
-        handleAddNotification({
-          id: Math.random().toString(36).substr(2, 9),
-          title: 'Yangi Kurator Biriktirildi',
-          message: `${user.name} sizni o'z jamoasiga qo'shdi.`,
-          type: 'success',
-          timestamp: new Date().toISOString(),
-          isRead: false,
-          targetRole: 'student',
-          targetUserId: studentId,
-          sender: user.name
-        });
-      }
-    } catch (e) { console.error(e) }
+          const student = allUsers.find(u => u.id === studentId);
+          if (student) {
+            handleAddNotification({
+              id: Math.random().toString(36).substr(2, 9),
+              title: 'Yangi Kurator Biriktirildi',
+              message: `${user!.username} sizni o'z jamoasiga qo'shdi.`,
+              type: 'success',
+              timestamp: new Date().toISOString(),
+              isRead: false,
+              targetRole: 'student',
+              targetUserId: studentId,
+              sender: user!.username
+            });
+          }
+        } catch (e) { console.error(e) }
+        finally { setIsDataSaving(false); }
+      },
+      'success',
+      "HA, QO'SHISH"
+    );
   };
 
   const handleUnassignStudent = async (studentId: string) => {
-    if (!user) return;
-    try {
-      await api.patch(`users/${studentId}/`, { assignedCuratorId: null });
-      setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, assignedCuratorId: null } : u));
-    } catch (e) { console.error(e) }
+    confirmThis(
+      "O'quvchini chiqarish",
+      "O'quvchini jamoangizdan chiqarib yubormoqchimisiz?",
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.patch(`users/${studentId}/`, { assignedCuratorId: null });
+          setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, assignedCuratorId: null } : u));
+        } catch (e) { console.error(e) }
+        finally { setIsDataSaving(false); }
+      }
+    );
   };
 
   const handleAssignCurator = async (curatorId: string) => {
-    if (!user) return;
-    try {
-      await api.patch(`users/${user.id}/`, { assignedCuratorId: curatorId });
-      setUser(prev => prev ? { ...prev, assignedCuratorId: curatorId } : null);
-      setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, assignedCuratorId: curatorId } : u));
+    const curator = allUsers.find(u => u.id === curatorId);
+    confirmThis(
+      "Kurator Tanlash",
+      `${curator?.username || 'Ushbu kurator'}ni tanlamoqchimisiz? Bu amalni keyinchalik o'zgartirish uchun adminga murojaat qilishingiz kerak bo'ladi.`,
+      async () => {
+        setIsDataSaving(true);
+        try {
+          await api.patch(`users/${user!.id}/`, { assignedCuratorId: curatorId });
+          setUser(prev => prev ? { ...prev, assignedCuratorId: curatorId } : null);
+          setAllUsers(prev => prev.map(u => u.id === user!.id ? { ...u, assignedCuratorId: curatorId } : u));
 
-      const curator = allUsers.find(u => u.id === curatorId);
+          if (curator) {
+            handleAddNotification({
+              id: Math.random().toString(36).substr(2, 9),
+              title: 'Yangi O\'quvchi Qo\'shildi',
+              message: `${user!.username} sizni o'z kuratori sifatida tanladi.`,
+              type: 'success',
+              timestamp: new Date().toISOString(),
+              isRead: false,
+              targetRole: 'curator',
+              targetUserId: curatorId,
+              sender: user!.username
+            });
+          }
 
-      // Notify the curator (sent via backend or local depending on implementation, but local here)
-      if (curator) {
-        handleAddNotification({
-          id: Math.random().toString(36).substr(2, 9),
-          title: 'Yangi O\'quvchi Qo\'shildi',
-          message: `${user.name || user.username} sizni o'z kuratori sifatida tanladi.`,
-          type: 'success',
-          timestamp: new Date().toISOString(),
-          isRead: false,
-          targetRole: 'curator',
-          targetUserId: curatorId,
-          sender: user.name || user.username
-        });
-      }
+          handleAddNotification({
+            id: Math.random().toString(36).substr(2, 9),
+            title: 'Kurator Tanlandi',
+            message: `${curator?.username || 'Kurator'} muvaffaqiyatli biriktirildi. Mashg'ulotlarni boshlashingiz mumkin!`,
+            type: 'success',
+            timestamp: new Date().toISOString(),
+            isRead: false,
+            targetRole: 'student',
+            targetUserId: user!.id,
+            sender: 'Tizim'
+          });
 
-      // Notify the student themselves
-      handleAddNotification({
-        id: Math.random().toString(36).substr(2, 9),
-        title: 'Kurator Tanlandi',
-        message: `${curator?.name || 'Kurator'} muvaffaqiyatli biriktirildi. Mashg'ulotlarni boshlashingiz mumkin!`,
-        type: 'success',
-        timestamp: new Date().toISOString(),
-        isRead: false,
-        targetRole: 'student',
-        targetUserId: user.id,
-        sender: 'Tizim'
-      });
-
-      handleNavigate('dashboard');
-    } catch (e) {
-      console.error(e);
-    }
+          handleNavigate('dashboard');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsDataSaving(false);
+        }
+      },
+      'success',
+      "HA, TANLASH"
+    );
   };
 
   if (isLoading) {
@@ -634,6 +770,61 @@ const App: React.FC = () => {
         isRegistrationOpen={isRegistrationOpen}
         unreadCount={filteredNotifications.filter(n => !n.isRead).length}
       />
+      
+      {/* GLOBAL SAVING OVERLAY LOADER */}
+      {isDataSaving && (
+        <div className="fixed inset-0 z-[1200] flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Zap className="w-6 h-6 text-indigo-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="mt-4 text-indigo-400 font-black uppercase tracking-[0.3em] text-[9px] animate-pulse">Saqlanmoqda...</p>
+        </div>
+      )}
+
+      {/* GLOBAL ACTION CONFIRMATION MODAL */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center px-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#0f0f12] border border-white/10 rounded-[2.5rem] p-10 max-w-sm w-full shadow-[0_50px_100px_rgba(0,0,0,0.9)] animate-in zoom-in-95 duration-300 text-center relative overflow-hidden">
+            <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 ${
+              confirmModal.type === 'danger' ? 'bg-red-500/10' : 
+              confirmModal.type === 'success' ? 'bg-green-500/10' : 'bg-indigo-500/10'
+            }`}>
+              {confirmModal.type === 'danger' ? <Trash2 className="w-10 h-10 text-red-500" /> : 
+               confirmModal.type === 'success' ? <CheckCircle className="w-10 h-10 text-green-500" /> : 
+               <Info className="w-10 h-10 text-indigo-500" />}
+            </div>
+
+            <h3 className="text-2xl font-black text-white mb-2 tracking-tight">{confirmModal.title}</h3>
+            <p className="text-slate-400 font-medium mb-10 leading-relaxed">{confirmModal.message}</p>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={confirmModal.onConfirm}
+                className={`w-full py-5 text-white font-black rounded-3xl transition-all shadow-lg active:scale-95 uppercase tracking-widest text-xs ${
+                  confirmModal.type === 'danger' ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20' : 
+                  confirmModal.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20' : 
+                  'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20'
+                }`}
+              >
+                {confirmModal.confirmText || (confirmModal.isAlert ? 'OK' : 'HA, TASDIQLAYMAN')}
+              </button>
+              
+              {!confirmModal.isAlert && (
+                <button
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="w-full py-5 bg-white/5 hover:bg-white/10 text-slate-300 font-black rounded-3xl transition-all active:scale-95 uppercase tracking-widest text-xs border border-white/5"
+                >
+                  BEKOR QILISH
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="animate-in fade-in duration-700">
         <Routes>
           <Route path="/" element={<HomeView onNavigate={handleNavigate} onAuthNavigate={handleNavigateToAuth} isRegistrationOpen={isRegistrationOpen} user={user} />} />
@@ -654,7 +845,7 @@ const App: React.FC = () => {
             </div>
           } />
           <Route path="/contact" element={<div className="pt-20"><Contact /></div>} />
-          <Route path="/dashboard" element={
+          <Route path="/dashboard/:activeTab?" element={
             user ? (
               user.role === 'admin' ? (
                 <Navigate to="/admin" replace />
@@ -673,6 +864,7 @@ const App: React.FC = () => {
                     seasons={seasons}
                     notifications={filteredNotifications}
                     onMarkRead={handleMarkNotificationAsRead}
+                    onMarkAllRead={() => handleMarkNotificationAsRead('all')}
                     onAssignStudent={handleAssignStudent}
                     onUnassignStudent={handleUnassignStudent}
                     onlineUsers={onlineUsers}
