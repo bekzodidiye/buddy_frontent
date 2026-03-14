@@ -195,34 +195,40 @@ const Dashboard: React.FC<DashboardProps> = ({
    });
 
    const handleSaveProfile = async () => {
-      
-      // Social linklarini tekshirish — agar http bo'lmasa https qo'shish
+      // Social linklarini tekshirish
       const validatedSocialLinks = (profileForm.socialLinks || []).map(link => {
          let url = link.linkUrl.trim();
          if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
             url = 'https://' + url;
          }
-         return { ...link, linkUrl: url };
+         // Agar iconUrl o'zgarmagan URL bo'lsa (server URLi) — qayta yubormaslik
+         const iconUrl = link.iconUrl?.startsWith('data:') ? link.iconUrl : undefined;
+         return { linkUrl: url, ...(iconUrl ? { iconUrl } : { iconUrl: link.iconUrl || '' }) };
       }).filter(link => link.linkUrl.trim() !== '');
 
-      try {
-         const success = await (onUpdateProfile as any)({
-            name: profileForm.name,
-            avatar: profileForm.avatar,
-            field: profileForm.field,
-            longBio: profileForm.longBio,
-            fieldDescription: profileForm.fieldDescription,
-            motivationQuote: profileForm.motivationQuote,
-            skills: profileForm.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
-            socialLinks: validatedSocialLinks
-         });
+      // Faqat o'zgargan ma'lumotlarni yuborish
+      const payload: Record<string, any> = {
+         name: profileForm.name,
+         field: profileForm.field,
+         longBio: profileForm.longBio,
+         fieldDescription: profileForm.fieldDescription,
+         motivationQuote: profileForm.motivationQuote,
+         skills: profileForm.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
+         socialLinks: validatedSocialLinks
+      };
 
+      // Avatarni faqat yangi base64 rasm bo'lsa yuborish
+      if (profileForm.avatar?.startsWith('data:')) {
+         payload.avatar = profileForm.avatar;
+      }
+
+      try {
+         const success = await (onUpdateProfile as any)(payload);
          if (success !== false) {
             setIsEditingProfile(false);
          }
       } catch (err) {
-         console.error("Profile save error", err);
-      } finally {
+         console.error('Profile save error', err);
       }
    };
 

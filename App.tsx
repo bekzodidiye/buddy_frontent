@@ -298,8 +298,38 @@ const App: React.FC = () => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Poll every 30 seconds
-    return () => clearInterval(interval);
+    const lightInterval = setInterval(async () => {
+      // Lightweight poll: users + notifications (every 60s)
+      try {
+        const [usersRes, notifRes] = await Promise.all([
+          api.get('users/').catch(() => ({ data: [] })),
+          api.get('notifications/').catch(() => ({ data: [] })),
+        ]);
+        setAllUsers(usersRes.data);
+        if (notifRes.data && Array.isArray(notifRes.data)) {
+          setNotifications(prev => {
+            const existingIds = new Set(prev.map(n => n.id));
+            const newOnes = notifRes.data.filter((n: any) => !existingIds.has(n.id));
+            if (newOnes.length === 0) return prev;
+            return [...newOnes, ...prev].sort((a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+          });
+        }
+      } catch (e) { /* silent */ }
+    }, 60000);
+    const heavyInterval = setInterval(async () => {
+      // Heavy poll: monitoring + highlights (every 5 min)
+      try {
+        const [monitorRes, hlRes] = await Promise.all([
+          api.get('monitoring/').catch(() => ({ data: [] })),
+          api.get('highlights/').catch(() => ({ data: [] })),
+        ]);
+        setAllStudentsData(monitorRes.data);
+        setWeeklyHighlights(hlRes.data);
+      } catch (e) { /* silent */ }
+    }, 300000);
+    return () => { clearInterval(lightInterval); clearInterval(heavyInterval); };
   }, [user]);
 
   useEffect(() => {
