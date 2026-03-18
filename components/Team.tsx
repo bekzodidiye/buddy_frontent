@@ -49,14 +49,23 @@ const Team: React.FC<TeamProps> = ({ user, onAssignCurator, customMembers, stude
   const members = customMembers || TEAM_MEMBERS;
 
   const displayedMembers = React.useMemo(() => {
-    if (user?.role === 'student' && user.assignedCuratorId) {
-      return members.filter(m => m.id === user.assignedCuratorId);
+    if (user?.role === 'student') {
+      const { assignedCuratorId, startupCuratorId } = user;
+      const bothAssigned = assignedCuratorId && startupCuratorId;
+      if (bothAssigned) {
+        return members.filter(m => m.id === assignedCuratorId || m.id === startupCuratorId);
+      } else if (assignedCuratorId) {
+        return members.filter(m => m.id === assignedCuratorId || m.field === 'StartUp Community');
+      } else if (startupCuratorId) {
+        return members.filter(m => m.id === startupCuratorId || m.field !== 'StartUp Community');
+      }
     }
     return members;
   }, [user, members]);
 
-  const isStudentChoosing = user?.role === 'student' && !user.assignedCuratorId;
-  const isStudentWithCurator = user?.role === 'student' && user.assignedCuratorId;
+  const isStudentChoosing = user?.role === 'student' && (!user.assignedCuratorId || !user.startupCuratorId);
+  const isStudentWithCurator = user?.role === 'student' && (!!user.assignedCuratorId || !!user.startupCuratorId);
+  const isStudentWithBothCurators = user?.role === 'student' && !!user.assignedCuratorId && !!user.startupCuratorId;
 
   return (
     <section id="team" className="py-16 md:py-24 lg:py-32 relative min-h-[60vh]">
@@ -67,18 +76,20 @@ const Team: React.FC<TeamProps> = ({ user, onAssignCurator, customMembers, stude
           <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
             <Zap className="w-4 h-4 text-blue-400" />
             <span className="text-xs font-black text-blue-400 uppercase tracking-widest">
-              {isStudentWithCurator ? "Sizning Tanlangan Buddyingiz" : "O'z ustozingni top"}
+              {isStudentWithBothCurators ? "Tanlangan Buddylar" : isStudentWithCurator ? "Sizning Tanlangan Buddyingiz" : "O'z ustozingni top"}
             </span>
           </div>
 
           <h2 className="text-3xl sm:text-5xl md:text-7xl font-black mb-6 md:mb-8 text-white tracking-tighter">
-            {isStudentWithCurator ? "Sizning " : "Barcha "}
+            {isStudentWithBothCurators ? "Sizning " : isStudentWithCurator ? "Sizning va Boshqa " : "Barcha "}
             <span className="bg-gradient-to-br from-[#60a5fa] to-[#a855f7] bg-clip-text text-transparent">Kuratorlar</span>
           </h2>
 
           <p className="text-slate-400 max-w-2xl mx-auto text-sm md:text-lg leading-relaxed font-medium px-2">
-            {isStudentWithCurator
-              ? "Ushbu kurator sizning haftalik o'sishingiz va muammolaringizni hal qilishda yordam beradi."
+            {isStudentWithBothCurators
+              ? "Ushbu kuratorlar sizning o'sishingiz va muammolaringizni hal qilishda yordam berishadi."
+              : isStudentWithCurator
+              ? "Ushbu kurator sizning o'sishingizga yordam beradi. Ikkinchi kuratoringizni ham tanlang."
               : "Bizning jamoa a'zolari har haftalik sessiyalarni boshqarishadi. O'zingizga mos yo'nalishni tanlang."}
           </p>
         </div>
@@ -93,8 +104,20 @@ const Team: React.FC<TeamProps> = ({ user, onAssignCurator, customMembers, stude
             {isStudentChoosing && displayedMembers.length > 0 && (
               <div className="mb-12 p-6 md:p-10 bg-white/5 backdrop-blur-[12px] border border-white/10 border-dashed border border-indigo-500/20 shadow-xl rounded-3xl text-center animate-in fade-in zoom-in duration-500">
                 <Users className="w-12 h-12 text-indigo-400 mx-auto mb-4" />
-                <h4 className="text-xl md:text-2xl font-black text-white mb-2 uppercase tracking-tight">Kurator Tanlash Rejimi Faol</h4>
-                <p className="text-slate-500 text-sm font-medium">Sizga mos keladigan mutaxassisni tanlang. Tanlovdan so'ng u sizga biriktiriladi.</p>
+                 <h4 className="text-xl md:text-2xl font-black text-white mb-2 uppercase tracking-tight">
+                   {!user.assignedCuratorId && !user.startupCuratorId 
+                     ? "Buddy (Kurator) Tanlang" 
+                     : !user.assignedCuratorId 
+                       ? "Sizga Asosiy Buddy (Kurator) Zarur"
+                       : "Sizga Startup Buddy (Kurator) Zarur"}
+                 </h4>
+                 <p className="text-slate-500 text-sm font-medium">
+                   {!user.assignedCuratorId && !user.startupCuratorId 
+                     ? "Sizga mos keladigan mutaxassislarni tanlang. Ham asosiy, ham startup yo'nalishi uchun alohida buddy tanlashingiz mumkin." 
+                     : !user.assignedCuratorId 
+                       ? "Sizda startup buddy bor, endi asosiy yo'nalish uchun buddy tanlang."
+                       : "Sizda asosiy buddy bor, endi startup yo'nalishi uchun buddy tanlang."}
+                 </p>
               </div>
             )}
 
@@ -138,7 +161,7 @@ const Team: React.FC<TeamProps> = ({ user, onAssignCurator, customMembers, stude
                           {member.bio}
                         </p>
 
-                        {isStudentChoosing ? (
+                        {isStudentChoosing && ((!user.assignedCuratorId && member.field !== 'StartUp Community') || (!user.startupCuratorId && member.field === 'StartUp Community')) ? (
                           <button
                             onClick={() => onAssignCurator(member.id)}
                             className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center space-x-2 active:scale-95"
@@ -188,8 +211,11 @@ const Team: React.FC<TeamProps> = ({ user, onAssignCurator, customMembers, stude
                               </div>
                             )}
                           </div>
-                          {isStudentWithCurator && (
-                            <div className="text-[9px] font-black uppercase text-indigo-400 tracking-widest bg-indigo-500/10 px-3 py-1 rounded-xl border border-indigo-500/20">Sizning Buddyingiz</div>
+                          {member.id === user?.assignedCuratorId && (
+                            <div className="text-[9px] font-black uppercase text-indigo-400 tracking-widest bg-indigo-500/10 px-3 py-1 rounded-xl border border-indigo-500/20 whitespace-nowrap">Asosiy Buddy</div>
+                          )}
+                          {member.id === user?.startupCuratorId && (
+                            <div className="text-[9px] font-black uppercase text-pink-400 tracking-widest bg-pink-500/10 px-3 py-1 rounded-xl border border-pink-500/20 whitespace-nowrap">Startup Buddy</div>
                           )}
                         </div>
                       </div>

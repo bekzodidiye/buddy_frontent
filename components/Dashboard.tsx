@@ -27,13 +27,22 @@ interface DashboardProps {
    onAssignStudent?: (studentId: string) => void;
    onUnassignStudent?: (studentId: string) => void;
    onlineUsers?: Set<string>;
+   isDataSaving?: boolean;
 }
+
+const isValidUrl = (url: string) => {
+   if (!url) return true;
+   try {
+      const pattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+      return pattern.test(url.trim());
+   } catch { return false; }
+};
 
 const Dashboard: React.FC<DashboardProps> = ({
    user,
-   studentsData,
-   highlights,
-   allUsers,
+   studentsData = [],
+   highlights = [],
+   allUsers = [],
    onRemoveStudent,
    onUpdateProfile,
    onUpdateStudent,
@@ -41,13 +50,14 @@ const Dashboard: React.FC<DashboardProps> = ({
    onAddHighlight,
    onRemoveHighlight,
    activeSeasonId,
-   seasons,
+   seasons = [],
    notifications = [],
    onMarkRead,
    onMarkAllRead,
    onAssignStudent,
    onUnassignStudent,
-   onlineUsers
+   onlineUsers,
+   isDataSaving
 }) => {
    const { activeTab: urlTab } = useParams<{ activeTab: string }>();
    const navigate = useNavigate();
@@ -80,12 +90,20 @@ const Dashboard: React.FC<DashboardProps> = ({
 
    const getAssignedCurator = (student: UserData | null) => {
       if (!student || student.role !== 'student') return null;
-      return allUsers.find(u => u.id === student.assignedCuratorId) || null;
+      return (allUsers || []).find(u => u.id === student.assignedCuratorId) || null;
+   };
+
+   const getStartupCurator = (student: UserData | null) => {
+      if (!student || student.role !== 'student') return null;
+      return (allUsers || []).find(u => u.id === student.startupCuratorId) || null;
    };
 
    const getAssignedStudents = (curator: UserData | null) => {
       if (!curator || curator.role !== 'curator') return [];
-      return allUsers.filter(u => u.assignedCuratorId === curator.id);
+      return (allUsers || []).filter(u => 
+         String(u.assignedCuratorId || (u as any).assigned_curator_id) === String(curator.id) || 
+         String(u.startupCuratorId || (u as any).startup_curator_id) === String(curator.id)
+      );
    };
 
    const getUserStatusStyle = (status: string) => {
@@ -109,6 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({
    const socialIconInputRef = useRef<HTMLInputElement>(null);
    const [activeSocialLinkIndex, setActiveSocialLinkIndex] = useState<number | null>(null);
 
+
    const filteredNotifications = useMemo(() => {
       if (!user) return [];
       const userCreatedAt = user.createdAt ? new Date(user.createdAt).getTime() : 0;
@@ -129,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
    const unreadCount = useMemo(() => filteredNotifications.filter(n => !n.isRead).length, [filteredNotifications]);
 
-   const canUpload = user?.role === 'curator' || user?.role === 'admin';
+   const canUpload = (user?.role || '').toLowerCase() === 'curator' || (user?.role || '').toLowerCase() === 'admin';
 
    // Sync activeSeasonId if it changes from props
    useEffect(() => {
@@ -194,6 +213,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       socialLinks: user?.socialLinks || []
    });
 
+   const isAllUrlsValid = useMemo(() => {
+      return (profileForm.socialLinks || []).every(link => !link.linkUrl || isValidUrl(link.linkUrl));
+   }, [profileForm.socialLinks]);
+
+
    const handleSaveProfile = async () => {
       // Social linklarini tekshirish
       const validatedSocialLinks = (profileForm.socialLinks || []).map(link => {
@@ -233,20 +257,45 @@ const Dashboard: React.FC<DashboardProps> = ({
    };
 
    const handleAddStudent = () => {
-      if (!newPlanForm.meetingDay.trim() || !user) return;
+      if (!newPlanForm.meetingDay.trim() || !user || isDataSaving) return;
+      const userRole = (user?.role || '').toLowerCase();
+      
+      // Both curators and admins should be able to add plans
+      if (userRole !== 'curator' && userRole !== 'admin') return;
 
-      // Find all assigned students
-      const assignedStudents = allUsers.filter(u => u.role === 'student' && u.assignedCuratorId === user.id);
+      const assignedStudents = (allUsers || []).filter(u => {
+         const uRole = (u.role || '').toLowerCase();
+         const uAssigned = u.assignedCuratorId || (u as any).assigned_curator_id;
+         const uStartup = u.startupCuratorId || (u as any).startup_curator_id;
+         
+         // If admin, we might want to filter by some criteria or let them add to any student?
+         // For now, let's assume they are acting as a curator for their own students if they have any,
+         // or handle it differently. But curators are definitely the main users here.
+         return uRole === 'student' && (
+            String(uAssigned) === String(user.id) || 
+            String(uStartup) === String(user.id)
+         );
+      });
 
       assignedStudents.forEach((student, index) => {
          // Check if a progress report already exists for this student, season, and week
-         const existingProgress = studentsData.find(
-            p => p.studentId === student.id && p.seasonId === selectedSeason && p.weekNumber === selectedWeek
+         const existingProgress = (studentsData || []).find(
+            p => {
+               const pStudentId = p.studentId || (p as any).student_id || (p as any).student?.id;
+               const pSeasonId = p.seasonId || (p as any).season_id || (p as any).season?.id;
+               const pWeekNum = p.weekNumber || (p as any).week_number;
+               const pCuratorId = p.curatorId || (p as any).curator_id || (p as any).curator?.id;
+
+               return String(pStudentId) === String(student.id) && 
+                      String(pSeasonId) === String(selectedSeason) && 
+                      Number(pWeekNum) === Number(selectedWeek) && 
+                      String(pCuratorId) === String(user.id);
+            }
          );
 
          if (!existingProgress) {
             const newProgress: StudentProgress = {
-               id: (Date.now() + index).toString(), // Temp ID, will be replaced by backend
+               id: (Date.now() + index).toString(),
                curatorId: user.id,
                seasonId: selectedSeason,
                weekNumber: selectedWeek,
@@ -258,8 +307,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                status: 'Kutilmoqda',
                meetingDay: newPlanForm.meetingDay.trim(),
                attended: false
-            };
-            onAddProgress(newProgress);
+            };            onAddProgress(newProgress);
          }
       });
 
@@ -276,18 +324,17 @@ const Dashboard: React.FC<DashboardProps> = ({
          return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
       } catch { return ''; }
    };
-
    const handleEditStudent = (progress: StudentProgress) => {
-      setEditingProgress(progress);
-      setEditPlanForm({
-         meetingDay: toDateTimeLocal(progress.meetingDay || ''),
-         attended: progress.attended || false,
-         weeklyGoal: progress.weeklyGoal || '',
-         difficulty: progress.difficulty || '',
-         solution: progress.solution || '',
-         status: progress.status || 'Kutilmoqda'
-      });
-   };
+       setEditingProgress(progress);
+       setEditPlanForm({
+          meetingDay: toDateTimeLocal(progress.meetingDay || (progress as any).meeting_day || ''),
+          attended: progress.attended || (progress as any).attended || false,
+          weeklyGoal: progress.weeklyGoal || (progress as any).weekly_goal || '',
+          difficulty: progress.difficulty || (progress as any).difficulty || '',
+          solution: progress.solution || (progress as any).solution || '',
+          status: progress.status || (progress as any).status || 'Kutilmoqda'
+       });
+    };
 
    const handleSaveEdit = () => {
       if (!editingProgress) return;
@@ -390,26 +437,59 @@ const Dashboard: React.FC<DashboardProps> = ({
    const mySeasonProgress = useMemo(() => {
       // Admin sees all, Curator sees their own, Student sees their own
       let base: StudentProgress[] = [];
-      if (user?.role === 'admin') {
-         base = studentsData;
-      } else if (user?.role === 'curator') {
-         base = studentsData.filter(s => s.curatorId === user.id);
-      } else if (user?.role === 'student') {
-         base = studentsData.filter(s => s.studentName === user.name);
+      const userRole = (user?.role || '').toLowerCase();
+      
+      if (userRole === 'admin') {
+         base = studentsData || [];
+      } else if (userRole === 'curator') {
+         base = (studentsData || []).filter(s => {
+            const sCuratorId = s.curatorId || (s as any).curator_id || (s as any).curator?.id;
+            return String(sCuratorId) === String(user.id);
+         });
+      } else if (userRole === 'student') {
+         base = (studentsData || []).filter(s => {
+            const sStudentId = s.studentId || (s as any).student_id || (s as any).student?.id;
+            const sStudentName = s.studentName || (s as any).student_name;
+            return String(sStudentId) === String(user.id) || sStudentName === user.name;
+         });
       }
-      return base.filter(s => s.seasonId === selectedSeason);
+      const filtered = base.filter(s => {
+         const sSeasonId = s.seasonId || (s as any).season_id || (s as any).season?.id;
+         return String(sSeasonId) === String(selectedSeason);
+      });
+
+      // Deduplicate to prevent double items from multiple POSTs or WebSocket overlaps
+      const seen = new Set();
+      return filtered.filter(p => {
+         const pStudentId = p.studentId || (p as any).student_id || (p as any).student?.id;
+         const pCuratorId = p.curatorId || (p as any).curator_id || (p as any).curator?.id;
+         const pWeekNum = p.weekNumber || (p as any).week_number;
+         const key = `${pStudentId}-${pCuratorId}-${pWeekNum}`;
+         if (seen.has(key)) return false;
+         seen.add(key);
+         return true;
+      });
    }, [studentsData, user, selectedSeason]);
 
    const filteredProgress = useMemo(() => {
-      return mySeasonProgress.filter(p => p.weekNumber === selectedWeek);
+      return mySeasonProgress.filter(p => {
+         const pWeekNum = p.weekNumber || (p as any).week_number;
+         return Number(pWeekNum) === Number(selectedWeek);
+      });
    }, [mySeasonProgress, selectedWeek]);
 
    const curatorsWithProgress = useMemo(() => {
-      if (user?.role !== 'admin') return [];
-      const curatorIds = Array.from(new Set(filteredProgress.map(p => p.curatorId)));
+      if ((user?.role || '').toLowerCase() !== 'admin') return [];
+      const curatorIds = Array.from(new Set(filteredProgress.map(p => {
+         const pCuratorId = p.curatorId || (p as any).curator_id || (p as any).curator?.id;
+         return String(pCuratorId);
+      })));
       return curatorIds.map(id => {
-         const curator = allUsers.find(u => u.id === id);
-         const progress = filteredProgress.filter(p => p.curatorId === id);
+         const curator = (allUsers || []).find(u => String(u.id) === String(id));
+         const progress = filteredProgress.filter(p => {
+            const pCuratorId = p.curatorId || (p as any).curator_id || (p as any).curator?.id;
+            return String(pCuratorId) === String(id);
+         });
          return { curator, progress };
       });
    }, [filteredProgress, allUsers, user]);
@@ -417,31 +497,44 @@ const Dashboard: React.FC<DashboardProps> = ({
    const filteredHighlights = useMemo(() => {
       if (user?.role === 'curator') {
          return highlights.filter(h =>
-            h.curatorId === user.id &&
-            h.seasonId === selectedSeason &&
-            h.weekNumber === selectedWeek
+            String(h.curatorId || (h as any).curator_id) === String(user.id) &&
+            String(h.seasonId || (h as any).season_id) === String(selectedSeason) &&
+            Number(h.weekNumber || (h as any).week_number) === Number(selectedWeek)
          );
       }
       if (user?.role === 'admin') {
          return highlights.filter(h =>
-            h.seasonId === selectedSeason &&
-            h.weekNumber === selectedWeek
+            String(h.seasonId || (h as any).season_id) === String(selectedSeason) &&
+            Number(h.weekNumber || (h as any).week_number) === Number(selectedWeek)
          );
       }
-      if (user?.role === 'student' && user.assignedCuratorId) {
-         return highlights.filter(h =>
-            h.curatorId === user.assignedCuratorId &&
-            h.seasonId === selectedSeason &&
-            h.weekNumber === selectedWeek
-         );
+      if (user?.role === 'student' && (user.assignedCuratorId || (user as any).assigned_curator_id || user.startupCuratorId || (user as any).startup_curator_id)) {
+         const assignedId = user.assignedCuratorId || (user as any).assigned_curator_id;
+         const startupId = user.startupCuratorId || (user as any).startup_curator_id;
+         return highlights.filter(h => {
+             const hCuratorId = h.curatorId || (h as any).curator_id;
+             const hSeasonId = h.seasonId || (h as any).season_id;
+             const hWeekNum = h.weekNumber || (h as any).week_number;
+             return (String(hCuratorId) === String(assignedId) || String(hCuratorId) === String(startupId)) &&
+                    String(hSeasonId) === String(selectedSeason) &&
+                    Number(hWeekNum) === Number(selectedWeek);
+         });
       }
-      // Fallback: show nothing or generic highlights if any
       return [];
    }, [highlights, user, selectedSeason, selectedWeek]);
 
    const uniqueStudents = useMemo(() => {
-      if (user?.role === 'curator') {
-         return allUsers.filter(u => u.role === 'student' && u.assignedCuratorId === user.id).map(u => ({
+      const userRole = (user?.role || '').toLowerCase();
+      if (userRole === 'curator') {
+         return (allUsers || []).filter(u => {
+            const uRole = (u.role || '').toLowerCase();
+            const uAssigned = u.assignedCuratorId || (u as any).assigned_curator_id;
+            const uStartup = u.startupCuratorId || (u as any).startup_curator_id;
+            return uRole === 'student' && (
+               String(uAssigned) === String(user.id) || 
+               String(uStartup) === String(user.id)
+            );
+         }).map(u => ({
             id: u.id,
             name: u.name,
             avatar: u.avatar
@@ -451,7 +544,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       const names = Array.from(new Set(mySeasonProgress.map(s => s.studentName)));
       return names.map(name => {
          const studentData = mySeasonProgress.find(s => s.studentName === name);
-         const userProfile = allUsers.find(u => u.name === name);
+         const userProfile = (allUsers || []).find(u => u.name === name);
          return {
             id: studentData?.id || `temp-${name}`,
             name: name,
@@ -507,7 +600,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <input type="file" ref={socialIconInputRef} onChange={handleSocialIconUpload} className="hidden" accept="image/*" />
                                     {profileForm.socialLinks?.map((link, index) => (
-                                       <div key={index} className="flex gap-4 bg-[#121214] py-2 px-4 rounded-2xl border border-white/5 items-center h-[56px]">
+                                        <div key={index} className={`flex gap-4 bg-[#121214] py-2 px-4 rounded-2xl border items-center h-[56px] transition-all duration-300 ${link.linkUrl && !isValidUrl(link.linkUrl) ? "border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)] bg-red-500/5" : "border-white/5"}`}>
                                           <div
                                              className="w-10 h-10 bg-black/20 border border-white/5 rounded-xl flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:border-indigo-500 transition-colors group relative"
                                              onClick={() => {
@@ -521,16 +614,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 <UploadCloud className="w-4 h-4 text-slate-600 group-hover:text-indigo-500 transition-colors" />
                                              )}
                                              {link.iconUrl && (
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
                                                    <Edit2 className="w-3 h-3 text-white" />
                                                 </div>
                                              )}
                                           </div>
-                                          <div className="flex-1 min-w-0">
+                                          <div className="flex-1 min-w-0 flex flex-col pt-2 pb-1 relative">
+                                             {link.linkUrl && !isValidUrl(link.linkUrl) && (
+                                                <div className="absolute -top-6 left-0 right-0 bg-red-600/90 text-[8px] font-black text-white px-3 py-1 rounded-lg border border-red-500 shadow-xl z-50 animate-bounce">
+                                                   URL xato togri url kiriting masalan :https://21-school.uz
+                                                </div>
+                                             )}
                                              <input
                                                 type="text"
                                                 placeholder="Link URL (https://...)"
-                                                className="w-full bg-transparent border-b border-white/5 py-2 px-0 text-xs text-white focus:border-indigo-500 transition-all outline-none"
+                                                className={`w-full bg-transparent border-b py-2 px-0 text-xs text-white transition-all outline-none ${link.linkUrl && !isValidUrl(link.linkUrl) ? 'border-red-500 text-red-200 shadow-[0_4px_12px_rgba(239,68,68,0.2)]' : 'border-white/5 focus:border-indigo-500'}`}
                                                 value={link.linkUrl}
                                                 onChange={(e) => {
                                                    const newLinks = [...(profileForm.socialLinks || [])];
@@ -704,7 +802,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                            <button onClick={() => setIsEditingProfile(false)} className="w-full sm:w-auto bg-[#1a1a1f] hover:bg-[#25252b] text-slate-400 hover:text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center">
                               BEKOR
                            </button>
-                           <button onClick={handleSaveProfile} className="w-full sm:w-auto bg-[#00c288] hover:bg-[#00a876] text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-[#00c288]/10">
+                           <button onClick={handleSaveProfile} disabled={!isAllUrlsValid} className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg ${!isAllUrlsValid ? "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50" : "bg-[#00c288] hover:bg-[#00a876] text-white shadow-[#00c288]/10"}`}>
+
                               <Save className="w-4 h-4" />
                               Saqlash
                            </button>
@@ -836,7 +935,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
                            {uniqueStudents.length > 0 ? uniqueStudents.map(s => {
-                              const fullStudent = allUsers.find(u => u.id === s.id || u.name === s.name);
+                              const fullStudent = (allUsers || []).find(u => u.id === s.id || u.name === s.name);
                               return (
                               <div key={s.id} className="p-6 md:p-8 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between group hover:border-indigo-500/30 transition-all shadow-lg">
                                  <div 
@@ -964,11 +1063,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                                              <img src={curator.avatar} alt={curator.name} className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover shadow-xl border border-white/5 shrink-0" />
                                           ) : (
                                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-lg sm:text-xl font-black shadow-xl shrink-0">
-                                                {curator?.name[0] || '?'}
+                                                {curator?.name?.[0] || '?'}
                                              </div>
                                           )}
                                           <div className="min-w-0 flex-1">
-                                             <h3 className="text-lg sm:text-2xl font-black text-white tracking-tight group-hover:text-indigo-400 transition-colors break-words">{curator?.name || 'Noma\'lum Kurator'}</h3>
+                                             <h3 className="text-lg sm:text-2xl font-black text-white tracking-tight break-words">{curator?.name || 'Noma\'lum Kurator'}</h3>
                                              <p className="text-[9px] sm:text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em] truncate">Mas'ul Kurator</p>
                                           </div>
                                        </div>
@@ -978,8 +1077,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                        </div>
                                     </div>
 
-                                    <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl bg-[#0a0a0c]/60 backdrop-blur-3xl">
-                                       {/* Desktop View */}
+                                    <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[3.5rem] overflow-hidden shadow-2xl bg-[#0a0a0c]/60">
+                                       {/* Desktop Table */}
                                        <div className="hidden lg:block w-full overflow-x-auto">
                                           <table className="w-full text-left border-collapse table-fixed">
                                              <thead>
@@ -995,15 +1094,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                              </thead>
                                              <tbody className="divide-y divide-white/5">
                                                 {progress.map((item) => {
-                                                   const student = allUsers.find(u => u.name === item.studentName);
+                                                   const student = (allUsers || []).find(u => u.name === item.studentName);
                                                    return (
                                                       <tr key={item.id} className="hover:bg-indigo-600/[0.03] transition-all duration-300">
                                                          <td className="px-10 py-8">
                                                             <div className="flex items-center gap-4 cursor-pointer group/name" onClick={() => student && setSelectedUserForView(student)}>
-                                                               <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 border border-indigo-500/10 flex items-center justify-center text-sm text-indigo-400 font-black group-hover/name:bg-indigo-600 group-hover/name:text-white transition-all shadow-sm">{item.studentName[0]}</div>
-                                                               <div>
-                                                                  <p className="text-base font-black text-white tracking-tight group-hover/name:text-indigo-400 transition-colors">{item.studentName}</p>
-                                                               </div>
+                                                               <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 border border-indigo-500/10 flex items-center justify-center text-sm text-indigo-400 font-black group-hover/name:bg-indigo-600 group-hover/name:text-white transition-all">{item.studentName?.[0]}</div>
+                                                               <p className="text-base font-black text-white group-hover/name:text-indigo-400 transition-colors break-words">{item.studentName}</p>
                                                             </div>
                                                          </td>
                                                          <td className="px-6 py-8">
@@ -1013,15 +1110,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                             </div>
                                                          </td>
                                                          <td className="px-6 py-8"><p className="text-[13px] text-slate-300 leading-relaxed font-medium break-words">{item.weeklyGoal || 'Kiritilmagan'}</p></td>
-                                                         <td className="px-6 py-8">
-                                                            <p className={`text-[13px] leading-relaxed font-medium ${!item.difficulty || item.difficulty === 'Yo\'q' ? 'text-slate-500' : 'text-slate-300'}`}>{item.difficulty || 'Yo\'q'}</p>
-                                                         </td>
-                                                         <td className="px-6 py-8">
-                                                            <p className={`text-[13px] leading-relaxed font-medium break-words ${!item.solution ? 'text-slate-500 italic' : 'text-slate-300'}`}>{item.solution || 'Kutilmoqda'}</p>
-                                                         </td>
+                                                         <td className="px-6 py-8"><p className={`text-[13px] leading-relaxed font-medium ${!item.difficulty || item.difficulty === "Yo'q" ? 'text-slate-500' : 'text-slate-300'}`}>{item.difficulty || "Yo'q"}</p></td>
+                                                         <td className="px-6 py-8"><p className={`text-[13px] leading-relaxed font-medium break-words ${!item.solution ? 'text-slate-500 italic' : 'text-slate-300'}`}>{item.solution || 'Kutilmoqda'}</p></td>
                                                          <td className="px-6 py-8"><span className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border transition-all shadow-sm ${getStatusStyle(item.status)}`}>{item.status}</span></td>
                                                          <td className="px-6 py-8 text-center">
-                                                            <div className="flex items-center justify-center">
+                                                            <div className="flex items-center justify-center gap-2">
                                                                <button onClick={() => handleEditStudent(item)} className="w-10 h-10 rounded-2xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-white/5"><Edit2 className="w-4 h-4" /></button>
                                                             </div>
                                                          </td>
@@ -1031,48 +1124,47 @@ const Dashboard: React.FC<DashboardProps> = ({
                                              </tbody>
                                           </table>
                                        </div>
-                                       {/* Mobile View */}
+                                       {/* Mobile Cards */}
                                        <div className="lg:hidden p-4 md:p-6 space-y-6">
                                           {progress.map((item) => {
-                                             const student = allUsers.find(u => u.name === item.studentName);
+                                             const sName = item.studentName || (item as any).student_name;
+                                             const student = (allUsers || []).find(u => u.name === sName);
                                              return (
                                                 <div key={item.id} className="p-4 sm:p-6 bg-white/5 border border-white/5 rounded-2xl space-y-5 shadow-xl">
                                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-                                                      <div className="flex items-center gap-3 cursor-pointer min-w-0 w-full flex-1" onClick={() => student && setSelectedUserForView(student)}>
-                                                         <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center font-black text-indigo-400 text-xs border border-indigo-500/20 shrink-0">{item.studentName[0]}</div>
+                                                      <div className="flex items-center gap-3 cursor-pointer min-w-0 flex-1" onClick={() => student && setSelectedUserForView(student)}>
+                                                         <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center font-black text-indigo-400 text-xs border border-indigo-500/20 shrink-0">{sName?.[0] || 'O'}</div>
                                                          <div className="min-w-0 flex-1">
-                                                            <span className="font-black text-white text-sm sm:text-base block truncate break-words">{item.studentName}</span>
-                                                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest flex items-center gap-1.5 truncate"> <Calendar className="w-3 h-3 shrink-0" /> <span className="truncate  break-words"> {formatMeetingDay(item.meetingDay)}</span></span>
+                                                            <span className="font-black text-white text-sm block truncate">{sName}</span>
+                                                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3 shrink-0" /><span className="truncate">{formatMeetingDay(item.meetingDay || (item as any).meeting_day)}</span></span>
                                                          </div>
                                                       </div>
-                                                      <span className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase border shrink-0 ${getStatusStyle(item.status)}`}>{item.status}</span>
+                                                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                         <span className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase border ${getStatusStyle(item.status)}`}>{item.status}</span>
+                                                      </div>
                                                    </div>
-
                                                    <div className="space-y-4">
                                                       <div className="space-y-1">
                                                          <p className="text-[9px] font-black uppercase text-indigo-400 tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> Maqsad</p>
-                                                         <p className="text-[13px] text-slate-300 leading-relaxed font-medium bg-white/5 p-3 rounded-xl break-words whitespace-pre-wrap">{item.weeklyGoal || 'Kiritilmagan'}</p>
+                                                         <p className="text-[13px] text-slate-300 leading-relaxed font-medium bg-white/5 p-3 rounded-xl break-words whitespace-pre-wrap">{(item.weeklyGoal || (item as any).weekly_goal) || 'Kiritilmagan'}</p>
                                                       </div>
-
                                                       <div className="grid grid-cols-1 gap-3">
                                                          <div className="space-y-1">
                                                             <p className="text-[9px] font-black uppercase text-orange-400 tracking-widest flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Muammo</p>
                                                             <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl">
-                                                               <p className={`text-[12px] leading-relaxed font-bold break-words whitespace-pre-wrap ${!item.difficulty || item.difficulty === 'Yo\'q' ? 'text-slate-600 italic' : 'text-orange-300'}`}>{item.difficulty || 'Yo\'q'}</p>
+                                                               <p className={`text-[12px] leading-relaxed font-bold break-words ${!(item.difficulty || (item as any).difficulty) || (item.difficulty || (item as any).difficulty) === "Yo'q" ? 'text-slate-600 italic' : 'text-orange-300'}`}>{(item.difficulty || (item as any).difficulty) || "Yo'q"}</p>
                                                             </div>
                                                          </div>
-
                                                          <div className="space-y-1">
                                                             <p className="text-[9px] font-black uppercase text-green-400 tracking-widest flex items-center gap-2"><Lightbulb className="w-3 h-3" /> Yechim</p>
                                                             <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl">
-                                                               <p className="text-[12px] text-green-300 leading-relaxed italic font-medium break-words whitespace-pre-wrap">{item.solution || 'Kutilmoqda'}</p>
+                                                               <p className={`text-[12px] leading-relaxed font-bold break-words ${!(item.solution || (item as any).solution) ? 'text-slate-600 italic' : 'text-green-300'}`}>{(item.solution || (item as any).solution) || 'Kutilmoqda'}</p>
                                                             </div>
                                                          </div>
                                                       </div>
                                                    </div>
-
                                                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                                                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Davomat: {item.attended ? <span className="text-green-500 text-[10px] font-black uppercase">Faol</span> : <span className="text-red-500 text-[10px] font-black uppercase">Yo'q</span>}</div>
+                                                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Davomat: {item.attended ? <span className="text-green-500">Faol</span> : <span className="text-red-500">Yo'q</span>}</div>
                                                       <button onClick={() => handleEditStudent(item)} className="p-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition-all border border-white/5"><Edit2 className="w-4 h-4" /></button>
                                                    </div>
                                                 </div>
@@ -1082,195 +1174,195 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     </div>
                                  </div>
                               )) : (
-                                 <div className="py-24 text-center bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-[3rem] border-dashed border-2 border-white/5">
+                                 <div className="py-32 text-center bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-[3rem] border-dashed border-2 border-white/5">
                                     <Activity className="w-16 h-16 text-slate-800 mx-auto mb-6 opacity-20" />
                                     <p className="text-xl font-black text-slate-700 uppercase tracking-widest">Ma'lumotlar mavjud emas</p>
                                  </div>
                               )
                            ) : (
-                              <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[3.5rem] border border-white/5 overflow-hidden shadow-2xl bg-[#0a0a0c]/60 backdrop-blur-3xl">
-                                 {/* Desktop Table View - Hidden on mobile */}
+                              <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[3.5rem] overflow-hidden shadow-2xl bg-[#0a0a0c]/60">
+                                 {/* Desktop Table */}
                                  <div className="hidden lg:block w-full overflow-x-auto">
                                     <table className="w-full text-left border-collapse table-fixed">
                                        <thead>
                                           <tr className="bg-white/[0.04] border-b border-white/5">
-                                             <th className="w-[22%] px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">O'quvchi</th>
-                                             <th className="w-[14%] px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">Uchrashuv</th>
-                                             <th className="w-[18%] px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">Haftalik Maqsad</th>
-                                             <th className="w-[14%] px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">Asosiy Muammo</th>
-                                             <th className="w-[14%] px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">Berilgan Yechim</th>
-                                             <th className="w-[10%] px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">Holat</th>
-                                             <th className="w-[12%] px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Amal</th>
+                                             <th className="py-6 px-8 text-[10px] font-black uppercase text-slate-500 tracking-widest w-[16%]">O'quvchi</th>
+                                             <th className="py-6 px-8 text-[10px] font-black uppercase text-slate-500 tracking-widest w-[12%]">Uchrashuv</th>
+                                             <th className={`py-6 px-4 text-[10px] font-black uppercase text-slate-500 tracking-widest ${user?.role === 'student' ? 'w-[13%]' : 'w-[18%]'}`}>Maqsad</th>
+                                             <th className={`py-6 px-4 text-[10px] font-black uppercase text-slate-500 tracking-widest ${user?.role === 'student' ? 'w-[13%]' : 'w-[18%]'}`}>Muammo</th>
+                                             <th className={`py-6 px-4 text-[10px] font-black uppercase text-slate-500 tracking-widest ${user?.role === 'student' ? 'w-[13%]' : 'w-[18%]'}`}>Yechim</th>
+                                             {user?.role === 'student' && <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-500 tracking-widest w-[15%]">Kurator</th>}
+                                             <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-500 tracking-widest w-[8%] text-center">Holat</th>
+                                             <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-500 tracking-widest w-[10%] text-center">Amal</th>
                                           </tr>
                                        </thead>
                                        <tbody className="divide-y divide-white/5">
                                           {filteredProgress.length > 0 ? filteredProgress.map((item) => {
-                                             const student = allUsers.find(u => u.name === item.studentName);
+                                             const sName = item.studentName || (item as any).student_name;
+                                             const student = (allUsers || []).find(u => u.name === sName);
+                                             const cId = item.curatorId || (item as any).curator_id;
+                                             const reportCurator = (allUsers || []).find(u => String(u.id) === String(cId));
+                                             const isStartup = reportCurator?.field === 'StartUp Community';
+                                             
                                              return (
-                                                <tr key={item.id} className="hover:bg-indigo-600/[0.03] transition-all duration-300">
-                                                   <td className="px-10 py-8">
-                                                      <div className="flex items-center gap-4 cursor-pointer group/name min-w-0" onClick={() => student && setSelectedUserForView(student)}>
-                                                         <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 border border-indigo-500/10 flex items-center justify-center text-sm text-indigo-400 font-black group-hover/name:bg-indigo-600 group-hover/name:text-white transition-all shadow-sm shrink-0">{item.studentName[0]}</div>
-                                                         <div className="min-w-0 flex-1">
-                                                            <p className="text-base font-black text-white tracking-tight group-hover/name:text-indigo-400 transition-colors break-words">{item.studentName}</p>
+                                                <tr key={item.id} className="group hover:bg-white/[0.02] transition-colors">
+                                                   <td className="py-6 px-8">
+                                                      <div className="flex items-center gap-4 cursor-pointer" onClick={() => student && setSelectedUserForView(student)}>
+                                                         <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center font-black text-indigo-400 text-xs border border-indigo-500/20 shrink-0">{(sName || '?')[0]}</div>
+                                                         <div className="font-black text-white text-sm truncate">{sName}</div>
+                                                      </div>
+                                                   </td>
+                                                   <td className="py-6 px-8">
+                                                      <div className="flex flex-col gap-1">
+                                                         <p className="text-[11px] text-indigo-300 font-black uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3" /> {formatMeetingDay(item.meetingDay || (item as any).meeting_day)}</p>
+                                                         <p className={`text-[9px] font-black uppercase ${item.attended ? 'text-green-500' : 'text-red-500'}`}>{item.attended ? 'Bor' : "Yo'q"}</p>
+                                                      </div>
+                                                   </td>
+                                                   <td className="py-6 px-4"><div className="w-full"><p className="text-xs text-slate-400 whitespace-pre-wrap break-words">{item.weeklyGoal || 'Kiritilmagan'}</p></div></td>
+                                                   <td className="py-6 px-4"><div className="w-full"><p className="text-xs text-orange-300 whitespace-pre-wrap break-words">{item.difficulty || "Yo'q"}</p></div></td>
+                                                   <td className="py-6 px-4"><div className="w-full"><p className="text-xs text-green-300 whitespace-pre-wrap break-words">{item.solution || 'Kutilmoqda'}</p></div></td>
+                                                   {user?.role === 'student' && (
+                                                      <td className="py-6 px-8">
+                                                         <div className="flex flex-col gap-1">
+                                                            <span className={`text-[9px] font-black uppercase tracking-widest ${isStartup ? 'text-pink-400' : 'text-indigo-400'}`}>
+                                                               {isStartup ? 'StartUp Kurator' : 'Asosiy Kurator'}
+                                                            </span>
+                                                            <span className="text-[11px] font-bold text-slate-300 truncate">{reportCurator?.name || '—'}</span>
                                                          </div>
-                                                      </div>
-                                                   </td>
-                                                   <td className="px-6 py-8">
-                                                      <div className="flex flex-col gap-1.5 min-w-0">
-                                                         <p className="text-[11px] text-indigo-300 font-black uppercase tracking-widest flex items-center gap-1.5 break-words"><Calendar className="w-3.5 h-3.5 shrink-0" /> {formatMeetingDay(item.meetingDay)}</p>
-                                                         <p className={`text-[9px] font-black uppercase tracking-widest break-words ${item.attended ? 'text-green-500' : 'text-red-500'}`}>{item.attended ? 'Ishtirok etdi' : 'Ishtirok etmadi'}</p>
-                                                      </div>
-                                                   </td>
-                                                   <td className="px-6 py-8"><p className="text-[13px] text-slate-300 leading-relaxed font-medium break-words">{item.weeklyGoal || 'Kiritilmagan'}</p></td>
-                                                   <td className="px-6 py-8">
-                                                      <p className={`text-[13px] leading-relaxed font-medium break-words ${!item.difficulty || item.difficulty === 'Yo\'q' ? 'text-slate-500' : 'text-slate-300'}`}>{item.difficulty || 'Yo\'q'}</p>
-                                                   </td>
-                                                   <td className="px-6 py-8">
-                                                      <p className={`text-[13px] leading-relaxed font-medium break-words ${!item.solution ? 'text-slate-500 italic' : 'text-slate-300'}`}>{item.solution || 'Kutilmoqda'}</p>
-                                                   </td>
-                                                   <td className="px-6 py-8"><span className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border transition-all shadow-sm ${getStatusStyle(item.status)}`}>{item.status}</span></td>
-                                                   <td className="px-6 py-8 text-center">
-                                                      <div className="flex items-center justify-center gap-3">
-                                                         {user?.role === 'curator' && selectedSeason === activeSeasonId && (
-                                                            <>
-                                                               <button onClick={() => handleEditStudent(item)} className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-white/5"><Edit2 className="w-5 h-5" /></button>
-                                                               <button onClick={() => onRemoveStudent(item.id)} className="w-12 h-12 rounded-2xl bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center text-red-400 hover:text-red-300 transition-all border border-red-500/10"><Trash2 className="w-5 h-5" /></button>
-                                                            </>
+                                                      </td>
+                                                   )}
+                                                   <td className="py-6 px-8 text-center"><span className={`px-4 py-2 rounded-xl text-[9px] font-black border ${getStatusStyle(item.status)}`}>{item.status}</span></td>
+                                                   <td className="py-6 px-2 text-center">
+                                                      <div className="flex gap-2 justify-center items-center min-w-fit px-2">
+                                                         <button onClick={() => handleEditStudent(item)} className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 text-slate-400 hover:text-white transition-all shadow-sm shrink-0"><Edit2 className="w-4 h-4" /></button>
+                                                         {user?.role !== 'student' && (
+                                                            <button onClick={() => onRemoveStudent(item.id)} className="p-3 bg-red-500/10 hover:bg-red-500/20 rounded-xl border border-red-500/20 text-red-400 hover:text-red-300 transition-all shadow-sm shrink-0"><Trash2 className="w-4 h-4" /></button>
                                                          )}
                                                       </div>
                                                    </td>
                                                 </tr>
                                              );
-                                          }) : (
-                                             <tr><td colSpan={7} className="py-24 text-center text-slate-700 font-black uppercase tracking-widest text-xs">Hozircha ma'mulot kiritilmagan</td></tr>
-                                          )}
+                                          }) : (<tr><td colSpan={8} className="py-12 text-center text-slate-500 italic">Hozircha ma'lumot yo'q</td></tr>)}
                                        </tbody>
                                     </table>
                                  </div>
-
-                                 {/* Mobile Card View - Visible on smaller screens */}
+                                 {/* Mobile Cards */}
                                  <div className="lg:hidden p-4 md:p-6 space-y-6">
                                     {filteredProgress.length > 0 ? filteredProgress.map((item) => {
-                                       const student = allUsers.find(u => u.name === item.studentName);
+                                       const sName = item.studentName || (item as any).student_name;
+                                       const student = (allUsers || []).find(u => u.name === sName);
+                                       const cId = item.curatorId || (item as any).curator_id;
+                                       const reportCurator = (allUsers || []).find(u => String(u.id) === String(cId));
+                                       const isStartup = reportCurator?.field === 'StartUp Community';
                                        return (
                                           <div key={item.id} className="p-4 sm:p-6 bg-white/5 border border-white/5 rounded-2xl space-y-5 shadow-xl">
-                                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b gap-4 border-white/5 pb-4">
-                                                <div className="flex items-center gap-3 cursor-pointer min-w-0 w-full flex-1" onClick={() => student && setSelectedUserForView(student)}>
-                                                   <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center font-black text-indigo-400 text-xs border border-indigo-500/20 shrink-0">{item.studentName[0]}</div>
+                                             <div className="flex items-start justify-between gap-4 border-b border-white/5 pb-4">
+                                                <div className="flex items-center gap-3 cursor-pointer min-w-0 flex-1" onClick={() => student && setSelectedUserForView(student)}>
+                                                   <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center font-black text-indigo-400 text-xs border border-indigo-500/20 shrink-0">{sName?.[0] || 'O'}</div>
                                                    <div className="min-w-0 flex-1">
-                                                      <span className="font-black text-white text-base block truncate break-words">{item.studentName}</span>
-                                                      <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest flex items-center gap-1.5 truncate"><Calendar className="w-3 h-3 shrink-0" /> <span className="truncate break-words">{formatMeetingDay(item.meetingDay)}</span></span>
+                                                      <span className="font-black text-white text-sm block truncate">{sName}</span>
+                                                      <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3 shrink-0" /><span className="truncate">{formatMeetingDay(item.meetingDay || (item as any).meeting_day)}</span></span>
                                                    </div>
                                                 </div>
                                                 <span className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase border shrink-0 ${getStatusStyle(item.status)}`}>{item.status}</span>
                                              </div>
-
-                                             <div className="space-y-4">
+                                             <div className="space-y-3">
                                                 <div className="space-y-1">
                                                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> Maqsad</p>
-                                                   <p className="text-[13px] text-slate-300 leading-relaxed font-medium bg-white/5 p-3 rounded-xl break-words whitespace-pre-wrap">{item.weeklyGoal || 'Kiritilmagan'}</p>
+                                                   <p className="text-[13px] text-slate-300 leading-relaxed font-medium bg-white/5 p-3 rounded-xl break-words whitespace-pre-wrap">{(item.weeklyGoal || (item as any).weekly_goal) || 'Kiritilmagan'}</p>
                                                 </div>
-
                                                 <div className="grid grid-cols-1 gap-3">
                                                    <div className="space-y-1">
-                                                      <p className="text-[9px] font-black uppercase text-orange-400 tracking-widest flex items-center gap-2"><AlertCircle className="w-3 h-3" /> Muammo</p>
+                                                      <p className="text-[9px] font-black uppercase text-orange-400 tracking-widest flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Muammo</p>
                                                       <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl">
-                                                         <p className={`text-[12px] leading-relaxed font-bold break-words whitespace-pre-wrap ${!item.difficulty || item.difficulty === 'Yo\'q' ? 'text-slate-600 italic' : 'text-orange-300'}`}>{item.difficulty || 'Yo\'q'}</p>
+                                                         <p className={`text-[12px] leading-relaxed font-bold break-words ${!(item.difficulty || (item as any).difficulty) || (item.difficulty || (item as any).difficulty) === "Yo'q" ? 'text-slate-600 italic' : 'text-orange-300'}`}>{(item.difficulty || (item as any).difficulty) || "Yo'q"}</p>
                                                       </div>
                                                    </div>
-
                                                    <div className="space-y-1">
                                                       <p className="text-[9px] font-black uppercase text-green-400 tracking-widest flex items-center gap-2"><Lightbulb className="w-3 h-3" /> Yechim</p>
                                                       <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl">
-                                                         <p className="text-[12px] text-green-300 leading-relaxed italic font-medium break-words whitespace-pre-wrap">{item.solution || 'Kutilmoqda'}</p>
+                                                         <p className={`text-[12px] leading-relaxed font-bold break-words ${!(item.solution || (item as any).solution) ? 'text-slate-600 italic' : 'text-green-300'}`}>{(item.solution || (item as any).solution) || 'Kutilmoqda'}</p>
                                                       </div>
                                                    </div>
                                                 </div>
-                                             </div>
-
-                                             <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Davomat: {item.attended ? <span className="text-green-500 text-[10px] font-black uppercase">Faol</span> : <span className="text-red-500 text-[10px] font-black uppercase">Yo'q</span>}</div>
-                                                {user?.role === 'curator' && selectedSeason === activeSeasonId && (
-                                                   <div className="flex gap-2">
-                                                      <button onClick={() => handleEditStudent(item)} className="p-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition-all border border-white/5"><Edit2 className="w-4 h-4" /></button>
-                                                      <button onClick={() => onRemoveStudent(item.id)} className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/10"><Trash2 className="w-4 h-4" /></button>
+                                                {user?.role === 'student' && (
+                                                   <div className="space-y-1">
+                                                      <p className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-2 ${isStartup ? 'text-pink-400' : 'text-indigo-400'}`}><Users className="w-3 h-3" /> Kurator</p>
+                                                      <div className={`p-3 rounded-xl border ${isStartup ? 'bg-pink-500/5 border-pink-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
+                                                         <p className={`text-[8px] font-black uppercase mb-0.5 ${isStartup ? 'text-pink-400' : 'text-indigo-400'}`}>{isStartup ? 'StartUp Kurator' : 'Asosiy Kurator'}</p>
+                                                         <p className="text-[12px] font-bold text-white leading-none">{reportCurator?.name || '—'}</p>
+                                                      </div>
                                                    </div>
                                                 )}
+                                             </div>
+                                             <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Davomat: {item.attended ? <span className="text-green-500">Faol</span> : <span className="text-red-500">Yo'q</span>}</div>
+                                                <div className="flex gap-2">
+                                                   <button onClick={() => handleEditStudent(item)} className="p-3 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl transition-all border border-white/5"><Edit2 className="w-4 h-4" /></button>
+                                                   {user?.role !== 'student' && (
+                                                      <button onClick={() => onRemoveStudent(item.id)} className="p-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-all border border-red-500/20"><Trash2 className="w-4 h-4" /></button>
+                                                   )}
+                                                </div>
                                              </div>
                                           </div>
                                        );
                                     }) : (
-                                       <div className="py-20 text-center">
-                                          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Hozircha ma'lumot yo'q</p>
+                                       <div className="py-12 text-center">
+                                          <Activity className="w-12 h-12 text-slate-800 mx-auto mb-4 opacity-20" />
+                                          <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Ma'lumotlar mavjud emas</p>
                                        </div>
                                     )}
                                  </div>
                               </div>
                            )}
-                        </div>
-
-                        {/* HIGHLIGHTS SECTION */}
-                        <div className="pt-12 md:pt-16 border-t border-white/5 relative">
-                           {/* Decorative Background Elements for Section */}
-                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[50%] bg-purple-600/5 blur-[100px] -z-10 rounded-full pointer-events-none"></div>
-
-                           <div className="space-y-8 md:space-y-12">
-                              <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-4">
-                                 <div className="text-center sm:text-left">
-                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-full mb-4">
-                                       <Zap className="w-3 h-3 text-purple-400" />
-                                       <span className="text-[9px] font-black uppercase tracking-widest text-purple-300">Vizual Xotiralar</span>
-                                    </div>
-                                    <h3 className="text-3xl md:text-5xl font-black text-white flex items-center justify-center sm:justify-start gap-4 tracking-tighter mb-2">
-                                       <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-slate-500">Uchrashuvdan</span>
-                                       <span className="text-purple-500">Lavhalar</span>
-                                    </h3>
-                                    <p className="text-slate-400 text-sm font-medium max-w-md">
-                                       Hafta #0{selectedWeek} davomida o'tkazilgan uchrashuvlardan esda qolarli onlarni tomosha qiling.
-                                    </p>
+                           <div className="flex flex-col sm:flex-row items-center justify-between gap-8">
+                              <div className="text-center sm:text-left">
+                                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-full mb-4">
+                                    <Zap className="w-3 h-3 text-purple-400" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-purple-300">Vizual Xotiralar</span>
                                  </div>
-
-                                 {/* Upload Button for Curator/Admin */}
-                                 {canUpload && (
-                                    <>
-                                       <input
-                                          type="file"
-                                          ref={fileInputRef}
-                                          className="hidden"
-                                          accept="image/*"
-                                          onChange={handleImageUpload}
-                                       />
-                                       <button
-                                          onClick={() => fileInputRef.current?.click()}
-                                          className="group relative px-8 py-4 bg-white text-black rounded-2xl font-black text-[10px] uppercase flex items-center gap-3 overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-                                       >
-                                          <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                          <UploadCloud className="w-5 h-5 relative z-10 group-hover:text-white transition-colors" />
-                                          <span className="relative z-10 group-hover:text-white transition-colors">Rasm Yuklash</span>
-                                       </button>
-                                    </>
-                                 )}
+                                 <h3 className="text-3xl md:text-5xl font-black text-white flex items-center justify-center sm:justify-start gap-4 tracking-tighter mb-2">
+                                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-slate-500">Uchrashuvdan</span>
+                                    <span className="text-purple-500">Lavhalar</span>
+                                 </h3>
+                                 <p className="text-slate-400 text-sm font-medium max-w-md">
+                                    Hafta #0{selectedWeek} davomida o'tkazilgan uchrashuvlardan esda qolarli onlarni tomosha qiling.
+                                 </p>
                               </div>
+                              {canUpload && (
+                                 <>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                    <button
+                                       onClick={() => fileInputRef.current?.click()}
+                                       className="group relative px-8 py-4 bg-white text-black rounded-2xl font-black text-[10px] uppercase flex items-center gap-3 overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                                    >
+                                       <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                       <UploadCloud className="w-5 h-5 relative z-10 group-hover:text-white transition-colors" />
+                                       <span className="relative z-10 group-hover:text-white transition-colors">Rasm Yuklash</span>
+                                    </button>
+                                 </>
+                              )}
+                           </div>
 
-                              <div className="min-h-[300px] bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-[3rem] border border-white/5 p-4 md:p-8 bg-[#0a0a0c]/40 relative overflow-hidden shadow-2xl">
-                                 {/* Content Grid */}
-                                 {filteredHighlights.length > 0 ? (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                                       {filteredHighlights.map((highlight) => (
+                           <div className="min-h-[300px] bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-[3rem] p-4 md:p-8 bg-[#0a0a0c]/40 relative overflow-hidden shadow-2xl">
+                              {filteredHighlights.length > 0 ? (
+                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                                    {filteredHighlights.map((highlight) => {
+                                       const uploader = (allUsers || []).find(u => String(u.id) === String(highlight.curatorId));
+                                       const isStartupUploader = uploader?.field === 'StartUp Community';
+                                       
+                                       return (
                                           <div
                                              key={highlight.id}
                                              className="group relative aspect-[4/5] rounded-[2rem] overflow-hidden border border-white/5 bg-[#121214] transition-all duration-500 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] hover:-translate-y-2 shadow-xl"
                                           >
-                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10 duration-300 pointer-events-none"></div>
-
+                                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-100 transition-opacity z-10 duration-300 pointer-events-none"></div>
                                              <img
                                                 src={highlight.image || highlight.photoUrl}
                                                 alt="Highlight"
                                                 onClick={() => setSelectedImage(highlight.image || highlight.photoUrl)}
                                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 cursor-pointer"
                                              />
-
                                              <div className="absolute top-4 right-4 z-20 flex gap-2">
                                                 <div
                                                    className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/5 text-white opacity-0 group-hover:opacity-100 transition-all cursor-pointer hover:bg-white/20"
@@ -1287,61 +1379,60 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                    </div>
                                                 )}
                                              </div>
-
-                                             <div className="absolute bottom-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 pointer-events-none">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-purple-400 mb-1">Yuklovchi</p>
-                                                <p className="text-white font-bold text-sm">{highlight.uploadedBy}</p>
+                                             <div className="absolute bottom-0 inset-x-0 p-5 z-20 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                                                <div className="flex flex-col gap-1">
+                                                   <span className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded-md w-fit ${isStartupUploader ? 'bg-pink-500/20 text-pink-400 border border-pink-500/20' : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/20'}`}>
+                                                      {isStartupUploader ? 'StartUp Kurator' : 'Asosiy Kurator'}
+                                                   </span>
+                                                   <p className="text-white font-black text-xs truncate uppercase tracking-widest drop-shadow-lg">{highlight.uploadedBy}</p>
+                                                </div>
                                              </div>
                                           </div>
-                                       ))}
-
-                                       {/* Quick Add Placeholder if Curator */}
+                                       );
+                                    })}
+                                    {canUpload && (
+                                       <div
+                                          onClick={() => fileInputRef.current?.click()}
+                                          className="aspect-[4/5] rounded-[2rem] border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-center p-6 gap-4 group cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all shadow-inner"
+                                       >
+                                          <div className="w-14 h-14 bg-white/5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-slate-500 group-hover:text-purple-400">
+                                             <Plus className="w-6 h-6" />
+                                          </div>
+                                          <p className="text-[10px] font-black uppercase text-slate-500 group-hover:text-purple-300 transition-colors">Yangi rasm qo'shish</p>
+                                       </div>
+                                    )}
+                                 </div>
+                              ) : (
+                                 <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-center max-w-sm px-6">
+                                       <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-white/5 relative">
+                                          <ImageIcon className="w-8 h-8 text-slate-600" />
+                                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-500/30">
+                                             <Info className="w-3 h-3 text-purple-400" />
+                                          </div>
+                                       </div>
+                                       <h4 className="text-xl font-black text-white mb-2">Hozircha bo'shliq</h4>
+                                       <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                                          Hafta #0{selectedWeek} uchun hali hech qanday rasm yuklanmagan.
+                                          {canUpload ? " Birinchi bo'lib siz yuklang!" : " Kuratorlar tez orada yuklashadi."}
+                                       </p>
                                        {canUpload && (
-                                          <div
+                                          <button
                                              onClick={() => fileInputRef.current?.click()}
-                                             className="aspect-[4/5] rounded-[2rem] border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-center p-6 gap-4 group cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all shadow-inner"
+                                             className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-xs transition-all shadow-lg shadow-purple-600/20"
                                           >
-                                             <div className="w-14 h-14 bg-white/5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-slate-500 group-hover:text-purple-400">
-                                                <Plus className="w-6 h-6" />
-                                             </div>
-                                             <p className="text-[10px] font-black uppercase text-slate-500 group-hover:text-purple-300 transition-colors">Yangi rasm qo'shish</p>
-                                          </div>
+                                             Rasm Yuklash
+                                          </button>
                                        )}
                                     </div>
-                                 ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                       <div className="text-center max-w-sm px-6">
-                                          <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-white/5 relative">
-                                             <ImageIcon className="w-8 h-8 text-slate-600" />
-                                             <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center border border-purple-500/30">
-                                                <Info className="w-3 h-3 text-purple-400" />
-                                             </div>
-                                          </div>
-                                          <h4 className="text-xl font-black text-white mb-2">Hozircha bo'shliq</h4>
-                                          <p className="text-slate-500 text-sm leading-relaxed mb-6">
-                                             Hafta #0{selectedWeek} uchun hali hech qanday rasm yuklanmagan.
-                                             {canUpload ? " Birinchi bo'lib siz yuklang!" : " Kuratorlar tez orada yuklashadi."}
-                                          </p>
-                                          {canUpload && (
-                                             <button
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-xs transition-all shadow-lg shadow-purple-600/20"
-                                             >
-                                                Rasm Yuklash
-                                             </button>
-                                          )}
-                                       </div>
-                                    </div>
-                                 )}
-                              </div>
+                                 </div>
+                              )}
                            </div>
                         </div>
                      </>
                   )}
                </div>
             )}
-
-            {/* NOTIFICATIONS TAB */}
             {activeTab === 'notifications' && (
                <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500">
                   <div className="flex items-center justify-between">
@@ -1459,7 +1550,19 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                                  <div className="space-y-4">
                                     <h4 className="text-[11px] break-words font-black uppercase text-slate-500 tracking-[0.4em] flex items-center gap-3"><Link2 className="w-5 h-5 text-purple-500" /> Buddy Tarmoq Ma'lumotlari</h4>
-                                    {selectedUserForView.role === 'student' ? (<div className="p-8 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:border-purple-500/30 transition-all" onClick={() => { const curator = getAssignedCurator(selectedUserForView); if (curator) setSelectedUserForView(curator); }}><div className="w-24 h-24 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform">{getAssignedCurator(selectedUserForView)?.avatar ? (<img src={getAssignedCurator(selectedUserForView)?.avatar} className="w-full h-full object-cover" />) : <UserCircle className="w-12 h-12 text-slate-700" />}</div><div className="text-center md:text-left min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-1">Mas'ul Kurator (Buddy)</p><h5 className="text-2xl font-black text-white break-words whitespace-normal break-words mb-2">{getAssignedCurator(selectedUserForView)?.name || 'Noma\'lum'}</h5><p className="text-sm text-slate-400 break-words whitespace-normal font-medium">Bu o'quvchi {getAssignedCurator(selectedUserForView)?.name || 'mentor'} nazorati ostida ish olib bormoqda.</p></div><div className="ml-auto hidden md:block shrink-0"><ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-purple-500 transition-colors" /></div></div>) : selectedUserForView.role === 'curator' ? (<div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{getAssignedStudents(selectedUserForView).length > 0 ? (getAssignedStudents(selectedUserForView).map(student => (<div key={student.id} className="p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all cursor-pointer group/st" onClick={() => setSelectedUserForView(student)}><div className="w-10 h-10 rounded-xl bg-indigo-600/10 flex items-center justify-center text-xs font-black text-indigo-400 group-hover/st:bg-indigo-600 group-hover/st:text-white transition-all">{(student.name || student.username || '?')[0].toUpperCase()}</div><div className="truncate flex-1 min-w-0"><p className="text-sm font-black text-white break-words whitespace-normal">{student.name || student.username}</p><p className="text-[10px] text-slate-500 font-bold">O'quvchi</p></div></div>))) : (<div className="col-span-full py-10 text-center border-2 border-dashed border-white/5 rounded-3xl"><p className="text-slate-700 font-bold text-xs uppercase tracking-widest">Hozircha o'quvchilar biriktirilmagan</p></div>)}</div></div>) : (<div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-3xl text-center"><p className="text-slate-500 font-bold text-sm italic">Adminlar global nazorat huquqiga ega.</p></div>)}
+                                    {selectedUserForView.role === 'student' ? (
+                                       <div className="flex flex-col gap-4">
+                                          {getAssignedCurator(selectedUserForView) && (
+                                             <div className="p-8 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:border-purple-500/30 transition-all" onClick={() => { const curator = getAssignedCurator(selectedUserForView); if (curator) setSelectedUserForView(curator); }}><div className="w-24 h-24 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform">{getAssignedCurator(selectedUserForView)?.avatar ? (<img src={getAssignedCurator(selectedUserForView)?.avatar} className="w-full h-full object-cover" />) : <UserCircle className="w-12 h-12 text-slate-700" />}</div><div className="text-center md:text-left min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-1">Mas'ul Kurator (Asosiy Buddy)</p><h5 className="text-2xl font-black text-white break-words whitespace-normal break-words mb-2">{getAssignedCurator(selectedUserForView)?.name || 'Noma\'lum'}</h5><p className="text-sm text-slate-400 break-words whitespace-normal font-medium">Bu o'quvchi {getAssignedCurator(selectedUserForView)?.name || 'mentor'} nazorati ostida ish olib bormoqda.</p></div><div className="ml-auto hidden md:block shrink-0"><ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-purple-500 transition-colors" /></div></div>
+                                          )}
+                                          {getStartupCurator(selectedUserForView) && (
+                                             <div className="p-8 bg-pink-600/5 border border-pink-500/10 rounded-3xl flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:border-pink-500/30 transition-all" onClick={() => { const curator = getStartupCurator(selectedUserForView); if (curator) setSelectedUserForView(curator); }}><div className="w-24 h-24 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform">{getStartupCurator(selectedUserForView)?.avatar ? (<img src={getStartupCurator(selectedUserForView)?.avatar} className="w-full h-full object-cover" />) : <UserCircle className="w-12 h-12 text-slate-700" />}</div><div className="text-center md:text-left min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-pink-400 tracking-widest mb-1">Mas'ul Kurator (Startup Buddy)</p><h5 className="text-2xl font-black text-white break-words whitespace-normal break-words mb-2">{getStartupCurator(selectedUserForView)?.name || 'Noma\'lum'}</h5><p className="text-sm text-slate-400 break-words whitespace-normal font-medium">Bu o'quvchi {getStartupCurator(selectedUserForView)?.name || 'mentor'} nazorati ostida ish olib bormoqda.</p></div><div className="ml-auto hidden md:block shrink-0"><ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-pink-500 transition-colors" /></div></div>
+                                          )}
+                                          {!getAssignedCurator(selectedUserForView) && !getStartupCurator(selectedUserForView) && (
+                                             <div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-3xl text-center"><p className="text-slate-500 font-bold text-sm italic">Hali kurator biriktirilmagan.</p></div>
+                                          )}
+                                       </div>
+                                    ) : selectedUserForView.role === 'curator' ? (<div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{getAssignedStudents(selectedUserForView).length > 0 ? (getAssignedStudents(selectedUserForView).map(student => (<div key={student.id} className="p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all cursor-pointer group/st" onClick={() => setSelectedUserForView(student)}><div className="w-10 h-10 rounded-xl bg-indigo-600/10 flex items-center justify-center text-xs font-black text-indigo-400 group-hover/st:bg-indigo-600 group-hover/st:text-white transition-all">{(student.name || student.username || '?')[0].toUpperCase()}</div><div className="truncate flex-1 min-w-0"><p className="text-sm font-black text-white break-words whitespace-normal">{student.name || student.username}</p><p className="text-[10px] text-slate-500 font-bold">O'quvchi</p></div></div>))) : (<div className="col-span-full py-10 text-center border-2 border-dashed border-white/5 rounded-3xl"><p className="text-slate-700 font-bold text-xs uppercase tracking-widest">Hozircha o'quvchilar biriktirilmagan</p></div>)}</div></div>) : (<div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-3xl text-center"><p className="text-slate-500 font-bold text-sm italic">Adminlar global nazorat huquqiga ega.</p></div>)}
                                  </div>
 
                                  <div className="space-y-4">
@@ -1513,35 +1616,33 @@ const Dashboard: React.FC<DashboardProps> = ({
             {/* ADD STUDENT MODAL */}
             {isAddingStudent && (
                <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-300">
-                  <div className="bg-[#0a0a0c] w-full max-w-3xl border border-white/5 rounded-[3rem] p-6 md:p-10 relative shadow-2xl">
-                     <h3 className="text-4xl font-black text-white tracking-tight mb-10">Yangi haftalik reja</h3>
+                  <div className="bg-[#0a0a0c] w-full max-w-2xl border border-white/5 rounded-[3rem] p-6 md:p-10 relative shadow-2xl">
+                     <h3 className="text-4xl font-black text-white tracking-tight mb-4">Yangi haftalik reja</h3>
+                     <p className="text-slate-400 text-sm mb-10">Uchrashuv vaqtini belgilang. Haftalik maqsad, muammo va yechimlarni har bir o'quvchi uchun alohida tahrirlashingiz mumkin.</p>
 
-                     <div className="grid grid-cols-1 gap-8 mb-10">
+                     <div className="space-y-6 mb-10">
                         <div className="space-y-3">
                            <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 block">Uchrashuv vaqti</label>
-                           <p className="text-xs text-slate-500 mb-2">Barcha biriktirilgan o'quvchilar uchun umumiy uchrashuv vaqti belgilanadi.</p>
-                           <div className="relative">
-                              <input
-                                 type="datetime-local"
-                                 value={newPlanForm.meetingDay}
-                                 onChange={(e) => setNewPlanForm(prev => ({ ...prev, meetingDay: e.target.value }))}
-                                 className="w-full bg-[#121214] border border-white/5 rounded-2xl p-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark] shadow-inner"
-                              />
-                           </div>
+                           <input
+                              type="datetime-local"
+                              value={newPlanForm.meetingDay}
+                              onChange={(e) => setNewPlanForm(prev => ({ ...prev, meetingDay: e.target.value }))}
+                              className="w-full bg-[#121214] border border-white/5 rounded-2xl p-5 text-white focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark] shadow-inner text-lg"
+                           />
                         </div>
                      </div>
 
                      <div className="flex items-center gap-4">
                         <button
                            onClick={handleAddStudent}
-                           disabled={!newPlanForm.meetingDay}
-                           className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white font-black uppercase tracking-widest text-sm py-5 rounded-2xl transition-all"
+                           disabled={!newPlanForm.meetingDay || isDataSaving}
+                           className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-sm py-5 rounded-2xl transition-all shadow-lg shadow-indigo-600/20"
                         >
-                           REJANI SAQLASH
+                           {isDataSaving ? 'SAQLANMOQDA...' : 'REJANI SAQLASH'}
                         </button>
                         <button
                            onClick={() => setIsAddingStudent(false)}
-                           className="px-8 py-5 bg-white/5 hover:bg-white/10 text-slate-300 font-black uppercase tracking-widest text-sm rounded-2xl transition-all border border-white/5"
+                           className="px-10 py-5 bg-white/5 hover:bg-white/10 text-slate-300 font-black uppercase tracking-widest text-sm rounded-2xl transition-all border border-white/5"
                         >
                            BEKOR QILISH
                         </button>
@@ -1573,24 +1674,43 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                         <div className="space-y-8">
-                           <div className="space-y-3">
-                              <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 block">Uchrashuv vaqti va davomat</label>
-                              <div className="flex gap-3">
-                                 <input
-                                    type="datetime-local"
-                                    value={editPlanForm.meetingDay}
-                                    onChange={(e) => setEditPlanForm(prev => ({ ...prev, meetingDay: e.target.value }))}
-                                    className="flex-1 bg-[#121214] border border-white/5 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark] shadow-inner"
-                                 />
-                                 <button
-                                    onClick={() => setEditPlanForm(prev => ({ ...prev, attended: !prev.attended }))}
-                                    className={`px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border ${editPlanForm.attended ? 'bg-green-500 text-white border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'}`}
-                                 >
-                                    {editPlanForm.attended ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
-                                    {editPlanForm.attended ? 'Ishtirok Etdi' : 'Ishtirok Etmadi'}
-                                 </button>
-                              </div>
-                           </div>
+                           {user?.role !== 'student' && (
+                              <>
+                                 <div className="space-y-3">
+                                    <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 block">Uchrashuv vaqti va davomat</label>
+                                    <div className="flex gap-3">
+                                       <input
+                                          type="datetime-local"
+                                          value={editPlanForm.meetingDay}
+                                          onChange={(e) => setEditPlanForm(prev => ({ ...prev, meetingDay: e.target.value }))}
+                                          className="flex-1 bg-[#121214] border border-white/5 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark] shadow-inner"
+                                       />
+                                       <button
+                                          onClick={() => setEditPlanForm(prev => ({ ...prev, attended: !prev.attended }))}
+                                          className={`px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border ${editPlanForm.attended ? 'bg-green-500 text-white border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'}`}
+                                       >
+                                          {editPlanForm.attended ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
+                                          {editPlanForm.attended ? 'Ishtirok Etdi' : 'Ishtirok Etmadi'}
+                                       </button>
+                                    </div>
+                                 </div>
+
+                                 <div className="space-y-3">
+                                    <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 block">Monitoring holati</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                       {(['Bajarilmoqda', 'Hal qilindi', 'Kutilmoqda', 'Bajarmadi'] as const).map(status => (
+                                          <button
+                                             key={status}
+                                             onClick={() => setEditPlanForm(prev => ({ ...prev, status }))}
+                                             className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border ${editPlanForm.status === status ? 'bg-indigo-600 text-white border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.3)]' : 'bg-[#121214] text-slate-500 border-white/5 hover:bg-white/5'}`}
+                                          >
+                                             {status}
+                                          </button>
+                                       ))}
+                                    </div>
+                                 </div>
+                              </>
+                           )}
 
                            <div className="space-y-3">
                               <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 flex justify-between">
@@ -1603,21 +1723,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                                  onChange={(e) => setEditPlanForm(prev => ({ ...prev, weeklyGoal: e.target.value }))}
                                  className="w-full bg-[#121214] border border-white/5 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500 transition-colors min-h-[120px] resize-none shadow-inner"
                               />
-                           </div>
-
-                           <div className="space-y-3">
-                              <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 block">Monitoring holati</label>
-                              <div className="grid grid-cols-2 gap-3">
-                                 {(['Bajarilmoqda', 'Hal qilindi', 'Kutilmoqda', 'Bajarmadi'] as const).map(status => (
-                                    <button
-                                       key={status}
-                                       onClick={() => setEditPlanForm(prev => ({ ...prev, status }))}
-                                       className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border ${editPlanForm.status === status ? 'bg-indigo-600 text-white border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.3)]' : 'bg-[#121214] text-slate-500 border-white/5 hover:bg-white/5'}`}
-                                    >
-                                       {status}
-                                    </button>
-                                 ))}
-                              </div>
                            </div>
                         </div>
 
@@ -1686,7 +1791,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                            <label className="text-[11px] font-black uppercase text-slate-500 tracking-widest ml-1 block">O'quvchini tanlang</label>
                            <CustomDropdown
                               options={allUsers
-                                 .filter(u => u.role === 'student' && !u.assignedCuratorId)
+                                 .filter(u => u.role === 'student' && (user?.field === 'StartUp Community' ? !u.startupCuratorId : !u.assignedCuratorId))
                                  .map(u => ({
                                     value: u.id,
                                     label: u.name || u.username,
@@ -1704,7 +1809,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                               icon={<UserCircle className="w-5 h-5" />}
                               className="w-full"
                            />
-                           {allUsers.filter(u => u.role === 'student' && !u.assignedCuratorId).length === 0 && (
+                           {(allUsers || []).filter(u => u.role === 'student' && (user?.field === 'StartUp Community' ? !u.startupCuratorId : !u.assignedCuratorId)).length === 0 && (
                               <p className="text-slate-500 text-xs mt-2 pl-1 italic">Barcha o'quvchilar allaqachon biriktirilgan.</p>
                            )}
                         </div>

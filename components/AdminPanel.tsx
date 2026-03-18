@@ -364,9 +364,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     return allUsers.find(u => u.id === student.assignedCuratorId) || null;
   };
 
+  const getStartupCurator = (student: UserData | null) => {
+    if (!student || student.role !== 'student') return null;
+    return allUsers.find(u => u.id === student.startupCuratorId) || null;
+  };
+
   const getAssignedStudents = (curator: UserData | null) => {
     if (!curator || curator.role !== 'curator') return [];
-    return allUsers.filter(u => u.assignedCuratorId === curator.id);
+    return allUsers.filter(u => u.assignedCuratorId === curator.id || u.startupCuratorId === curator.id);
   };
 
   return (
@@ -594,8 +599,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
                       return { curator, completedCount, totalCount, completionRate };
                     })
-                    .sort((a, b) => b.completedCount - a.completedCount)
-                    .slice(0, 4)
+                    .sort((a, b) => b.completionRate - a.completionRate)
+                    .slice(0, 5)
                     .map((item, index) => (
                       <div key={item.curator.id} className="flex flex-col p-4 rounded-[10px] bg-white/5 border border-white/5">
                         <div className="flex items-center justify-between gap-4 mb-3">
@@ -722,7 +727,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       )}
                       <div className="min-w-0 flex-1">
                         <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight transition-colors truncate break-words">{curator?.name || 'Noma\'lum Kurator'}</h3>
-                        <p className="text-[9px] sm:text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em] truncate">Mas'ul Kurator</p>
+                        <p className={`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] truncate ${curator?.field === 'StartUp Community' ? 'text-pink-400' : 'text-indigo-400'}`}>
+                          {curator?.field === 'StartUp Community' ? 'Startup Buddy' : 'Asosiy Buddy'}
+                        </p>
                       </div>
                     </div>
                     <div className="w-full sm:w-auto px-6 py-3 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-between sm:justify-center">
@@ -1389,7 +1396,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       <div className="space-y-4">
                         <h4 className="text-[11px] break-words font-black uppercase text-slate-500 tracking-[0.4em] flex items-center gap-3"><Link2 className="w-5 h-5 text-purple-500" /> Buddy Tarmoq Ma'lumotlari</h4>
-                        {selectedUserForView.role === 'student' ? (<div className="p-8 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:border-purple-500/30 transition-all" onClick={() => { const curator = getAssignedCurator(selectedUserForView); if (curator) setSelectedUserForView(curator); }}><div className="w-24 h-24 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform">{getAssignedCurator(selectedUserForView)?.avatar ? (<img src={getAssignedCurator(selectedUserForView)?.avatar} className="w-full h-full object-cover" />) : <UserCircle className="w-12 h-12 text-slate-700" />}</div><div className="text-center md:text-left min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-1">Mas'ul Kurator (Buddy)</p><h5 className="text-2xl font-black text-white break-words whitespace-normal break-words mb-2">{getAssignedCurator(selectedUserForView)?.name || 'Noma\'lum'}</h5><p className="text-sm text-slate-400 break-words whitespace-normal font-medium">Bu o'quvchi {getAssignedCurator(selectedUserForView)?.name || 'mentor'} nazorati ostida ish olib bormoqda.</p></div><div className="ml-auto hidden md:block shrink-0"><ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-purple-500 transition-colors" /></div></div>) : selectedUserForView.role === 'curator' ? (<div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{getAssignedStudents(selectedUserForView).length > 0 ? (getAssignedStudents(selectedUserForView).map(student => (<div key={student.id} className="p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all cursor-pointer group/st" onClick={() => setSelectedUserForView(student)}><div className="w-10 h-10 rounded-xl bg-indigo-600/10 flex items-center justify-center text-xs font-black text-indigo-400 group-hover/st:bg-indigo-600 group-hover/st:text-white transition-all">{(student.name || student.username || '?')[0].toUpperCase()}</div><div className="truncate flex-1 min-w-0"><p className="text-sm font-black text-white break-words whitespace-normal">{student.name || student.username}</p><p className="text-[10px] text-slate-500 font-bold">O'quvchi</p></div></div>))) : (<div className="col-span-full py-10 text-center border-2 border-dashed border-white/5 rounded-3xl"><p className="text-slate-700 font-bold text-xs uppercase tracking-widest">Hozircha o'quvchilar biriktirilmagan</p></div>)}</div></div>) : (<div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-3xl text-center"><p className="text-slate-500 font-bold text-sm italic">Adminlar global nazorat huquqiga ega.</p></div>)}
+                        {selectedUserForView.role === 'student' ? (
+                           <div className="flex flex-col gap-4">
+                              {getAssignedCurator(selectedUserForView) && (
+                                 <div className="p-8 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:border-purple-500/30 transition-all" onClick={() => { const curator = getAssignedCurator(selectedUserForView); if (curator) setSelectedUserForView(curator); }}><div className="w-24 h-24 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform">{getAssignedCurator(selectedUserForView)?.avatar ? (<img src={getAssignedCurator(selectedUserForView)?.avatar} className="w-full h-full object-cover" />) : <UserCircle className="w-12 h-12 text-slate-700" />}</div><div className="text-center md:text-left min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-1">Mas'ul Kurator (Asosiy Buddy)</p><h5 className="text-2xl font-black text-white break-words whitespace-normal break-words mb-2">{getAssignedCurator(selectedUserForView)?.name || 'Noma\'lum'}</h5><p className="text-sm text-slate-400 break-words whitespace-normal font-medium">Bu o'quvchi {getAssignedCurator(selectedUserForView)?.name || 'mentor'} nazorati ostida ish olib bormoqda.</p></div><div className="ml-auto hidden md:block shrink-0"><ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-purple-500 transition-colors" /></div></div>
+                              )}
+                              {getStartupCurator(selectedUserForView) && (
+                                 <div className="p-8 bg-pink-600/5 border border-pink-500/10 rounded-3xl flex flex-col md:flex-row items-center gap-8 group cursor-pointer hover:border-pink-500/30 transition-all" onClick={() => { const curator = getStartupCurator(selectedUserForView); if (curator) setSelectedUserForView(curator); }}><div className="w-24 h-24 rounded-2xl bg-white/5 overflow-hidden flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform">{getStartupCurator(selectedUserForView)?.avatar ? (<img src={getStartupCurator(selectedUserForView)?.avatar} className="w-full h-full object-cover" />) : <UserCircle className="w-12 h-12 text-slate-700" />}</div><div className="text-center md:text-left min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-pink-400 tracking-widest mb-1">Mas'ul Kurator (Startup Buddy)</p><h5 className="text-2xl font-black text-white break-words whitespace-normal break-words mb-2">{getStartupCurator(selectedUserForView)?.name || 'Noma\'lum'}</h5><p className="text-sm text-slate-400 break-words whitespace-normal font-medium">Bu o'quvchi {getStartupCurator(selectedUserForView)?.name || 'mentor'} nazorati ostida ish olib bormoqda.</p></div><div className="ml-auto hidden md:block shrink-0"><ChevronRight className="w-8 h-8 text-slate-800 group-hover:text-pink-500 transition-colors" /></div></div>
+                              )}
+                              {!getAssignedCurator(selectedUserForView) && !getStartupCurator(selectedUserForView) && (
+                                 <div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-3xl text-center"><p className="text-slate-500 font-bold text-sm italic">Hali kurator biriktirilmagan.</p></div>
+                              )}
+                           </div>
+                        ) : selectedUserForView.role === 'curator' ? (<div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{getAssignedStudents(selectedUserForView).length > 0 ? (getAssignedStudents(selectedUserForView).map(student => (<div key={student.id} className="p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all cursor-pointer group/st" onClick={() => setSelectedUserForView(student)}><div className="w-10 h-10 rounded-xl bg-indigo-600/10 flex items-center justify-center text-xs font-black text-indigo-400 group-hover/st:bg-indigo-600 group-hover/st:text-white transition-all">{(student.name || student.username || '?')[0].toUpperCase()}</div><div className="truncate flex-1 min-w-0"><p className="text-sm font-black text-white break-words whitespace-normal">{student.name || student.username}</p><p className="text-[10px] text-slate-500 font-bold">O'quvchi</p></div></div>))) : (<div className="col-span-full py-10 text-center border-2 border-dashed border-white/5 rounded-3xl"><p className="text-slate-700 font-bold text-xs uppercase tracking-widest">Hozircha o'quvchilar biriktirilmagan</p></div>)}</div></div>) : (<div className="p-8 bg-indigo-600/5 border border-indigo-500/10 rounded-3xl text-center"><p className="text-slate-500 font-bold text-sm italic">Adminlar global nazorat huquqiga ega.</p></div>)}
                       </div>
 
                       <div className="space-y-4">

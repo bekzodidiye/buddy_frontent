@@ -427,7 +427,13 @@ const App: React.FC = () => {
   const handleUpdateStudent = async (updatedStudent: StudentProgress) => {
     setIsDataSaving(true);
     try {
-      const res = await api.patch(`monitoring/${updatedStudent.id}/`, updatedStudent);
+      const payload = {
+        ...updatedStudent,
+        curator: updatedStudent.curatorId || (updatedStudent as any).curator_id,
+        season: updatedStudent.seasonId || (updatedStudent as any).season_id,
+        student: updatedStudent.studentId || (updatedStudent as any).student_id,
+      };
+      const res = await api.patch(`monitoring/${updatedStudent.id}/`, payload);
       setAllStudentsData(prev => prev.map(s => s.id === updatedStudent.id ? res.data : s));
     } catch (err) {
       console.error("Failed to update student progress:", err);
@@ -440,17 +446,17 @@ const App: React.FC = () => {
     setIsDataSaving(true);
     try {
       const payload = {
-        curatorId: p.curatorId,
-        seasonId: p.seasonId || activeSeasonId,
-        weekNumber: p.weekNumber,
-        studentId: p.studentId || null,
-        studentName: p.studentName,
-        weeklyGoal: p.weeklyGoal || '',
-        difficulty: p.difficulty || '',
-        solution: p.solution || '',
-        status: p.status || 'Kutilmoqda',
-        meetingDay: p.meetingDay || null,
-        attended: p.attended ?? false
+        curator: p.curatorId || (p as any).curator_id,
+        season: p.seasonId || (p as any).season_id || activeSeasonId,
+        weekNumber: p.weekNumber || (p as any).week_number,
+        student: p.studentId || (p as any).student_id || null,
+        studentName: p.studentName || (p as any).student_name,
+        weeklyGoal: p.weeklyGoal || (p as any).weekly_goal || '',
+        difficulty: p.difficulty || (p as any).difficulty || '',
+        solution: p.solution || (p as any).solution || '',
+        status: p.status || (p as any).status || 'Kutilmoqda',
+        meetingDay: p.meetingDay || (p as any).meeting_day || null,
+        attended: p.attended ?? (p as any).attended ?? false
       };
       const res = await api.post('monitoring/', payload);
       setAllStudentsData(prev => [...prev, res.data]);
@@ -469,7 +475,7 @@ const App: React.FC = () => {
         setIsDataSaving(true);
         try {
           await api.delete(`monitoring/${id}/`);
-          setAllStudentsData(prev => prev.filter(s => s.id !== id));
+          setAllStudentsData(prev => prev.filter(s => String(s.id) !== String(id)));
         } catch (err) {
           console.error("Failed to remove progress:", err);
         } finally {
@@ -664,15 +670,14 @@ const App: React.FC = () => {
   const handleMarkNotificationAsRead = async (id: string | 'all') => {
     try {
       if (id === 'all') {
-        const unreadIds = filteredNotifications.filter(n => !n.isRead).map(n => n.id);
-        if (unreadIds.length === 0) return;
-        
-        // Parallel update on backend if endpoint supports it, otherwise individual. 
-        // For now, let's update locally and assume backend handle or do individual calls.
-        // Actually, simple way is loop or a bulk endpoint if available.
-        // Let's assume we can loop or better, just update state and do one call if backend supports.
-        // If not, we'll do individual. 
-        await Promise.all(unreadIds.map(uid => api.patch(`notifications/${uid}/`, { isRead: true })));
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const realUnreadIds = (filteredNotifications || [])
+          .filter(n => !n.isRead && uuidRegex.test(String(n.id)))
+          .map(n => n.id);
+          
+        if (realUnreadIds.length > 0) {
+          await Promise.all(realUnreadIds.map(uid => api.patch(`notifications/${uid}/`, { isRead: true })));
+        }
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       } else {
         await api.patch(`notifications/${id}/`, { isRead: true });
@@ -690,8 +695,9 @@ const App: React.FC = () => {
       async () => {
         setIsDataSaving(true);
         try {
-          await api.patch(`users/${studentId}/`, { assignedCuratorId: user!.id });
-          setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, assignedCuratorId: user!.id } : u));
+          const propertyToUpdate = user!.field === 'StartUp Community' ? 'startupCuratorId' : 'assignedCuratorId';
+          await api.patch(`users/${studentId}/`, { [propertyToUpdate]: user!.id });
+          setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, [propertyToUpdate]: user!.id } : u));
 
           const student = allUsers.find(u => u.id === studentId);
           if (student) {
@@ -722,8 +728,9 @@ const App: React.FC = () => {
       async () => {
         setIsDataSaving(true);
         try {
-          await api.patch(`users/${studentId}/`, { assignedCuratorId: null });
-          setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, assignedCuratorId: null } : u));
+          const propertyToUpdate = user!.field === 'StartUp Community' ? 'startupCuratorId' : 'assignedCuratorId';
+          await api.patch(`users/${studentId}/`, { [propertyToUpdate]: null });
+          setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, [propertyToUpdate]: null } : u));
         } catch (e) { console.error(e) }
         finally { setIsDataSaving(false); }
       }
@@ -738,9 +745,11 @@ const App: React.FC = () => {
       async () => {
         setIsDataSaving(true);
         try {
-          await api.patch(`users/${user!.id}/`, { assignedCuratorId: curatorId });
-          setUser(prev => prev ? { ...prev, assignedCuratorId: curatorId } : null);
-          setAllUsers(prev => prev.map(u => u.id === user!.id ? { ...u, assignedCuratorId: curatorId } : u));
+          const isStartup = curator?.field === 'StartUp Community';
+          const propertyToUpdate = isStartup ? 'startupCuratorId' : 'assignedCuratorId';
+          await api.patch(`users/${user!.id}/`, { [propertyToUpdate]: curatorId });
+          setUser(prev => prev ? { ...prev, [propertyToUpdate]: curatorId } : null);
+          setAllUsers(prev => prev.map(u => u.id === user!.id ? { ...u, [propertyToUpdate]: curatorId } : u));
 
           if (curator) {
             handleAddNotification({
@@ -898,6 +907,7 @@ const App: React.FC = () => {
                     onAssignStudent={handleAssignStudent}
                     onUnassignStudent={handleUnassignStudent}
                     onlineUsers={onlineUsers}
+                    isDataSaving={isDataSaving}
                   />
                 </div>
               )

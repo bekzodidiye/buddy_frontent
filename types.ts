@@ -24,6 +24,7 @@ export interface UserData {
   skills?: string[];
   socialLinks?: SocialLink[];
   assignedCuratorId?: string | null;
+  startupCuratorId?: string | null;
   isApproved?: boolean;
   createdAt?: string;
 }
