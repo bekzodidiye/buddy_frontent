@@ -23,6 +23,14 @@ const CuratorDetail: React.FC<CuratorDetailProps> = ({ curator, onClose, student
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const activeSeason = seasons.find(s => s.id === selectedSeason);
+    const maxWeeks = (activeSeason?.durationInMonths || 3) * 4;
+    if (selectedWeek > maxWeeks) {
+      setSelectedWeek(maxWeeks);
+    }
+  }, [selectedSeason, seasons]);
+
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
     return () => {
@@ -173,7 +181,7 @@ const CuratorDetail: React.FC<CuratorDetailProps> = ({ curator, onClose, student
                     <p className="text-[9px] font-black uppercase text-slate-500 mb-0.5 tracking-[0.2em]">Haftalik</p>
                     <p className="text-3xl font-black text-white leading-none tracking-tight">#0{selectedWeek}</p>
                   </div>
-                  <button disabled={selectedWeek === 4} onClick={() => setSelectedWeek(w => w + 1)} className="p-4 text-slate-400 hover:text-white disabled:opacity-20 rounded-xl hover:bg-white/5 transition-all"><ChevronRight className="w-5 h-5" /></button>
+                  <button disabled={selectedWeek >= (seasons.find(s => s.id === selectedSeason)?.durationInMonths || 3) * 4} onClick={() => setSelectedWeek(w => w + 1)} className="p-4 text-slate-400 hover:text-white disabled:opacity-20 rounded-xl hover:bg-white/5 transition-all"><ChevronRight className="w-5 h-5" /></button>
                 </div>
               </div>
             </div>

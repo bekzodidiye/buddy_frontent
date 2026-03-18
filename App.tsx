@@ -403,6 +403,8 @@ const App: React.FC = () => {
   };
 
   const handleLoginSuccess = (userData: UserData) => {
+    localStorage.removeItem('buddy_admin_tab');
+    localStorage.removeItem('buddy_dashboard_tab');
     setUser(userData);
     handleNavigate(userData.role === 'admin' ? 'admin' : 'dashboard');
   };
@@ -656,9 +658,9 @@ const App: React.FC = () => {
       const nextSeason: Season = {
         id: newSeasonData.id,
         number: newSeasonData.number,
-        startDate: newSeasonData.start_date,
-        isActive: newSeasonData.is_active,
-        durationInMonths: newSeasonData.duration_months
+        startDate: newSeasonData.startDate,
+        isActive: newSeasonData.isActive,
+        durationInMonths: newSeasonData.durationInMonths
       };
 
       setSeasons(prev => prev.map(s => ({ ...s, isActive: false })).concat([nextSeason]));
@@ -831,7 +833,7 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0c] z-50">
-        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+        <Loader2 className="w-16 h-16 text-indigo-500 animate-spin mb-4" />
         <p className="text-slate-400 font-medium animate-pulse text-sm">Profil tekshirilmoqda...</p>
       </div>
     );
@@ -904,11 +906,11 @@ const App: React.FC = () => {
       )}
 
             {isDataLoading && (
-        <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-[#0a0a0c] bg-opacity-90 backdrop-blur-xl transition-all duration-700">
-           <div className="relative">
-              <div className="w-24 h-24 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-              <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-indigo-500 animate-pulse" />
-           </div>
+         <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-[#0a0a0c] bg-opacity-90 backdrop-blur-xl transition-all duration-700">
+            <div className="relative">
+               <div className="w-16 h-16 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+               <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-indigo-500 animate-pulse" />
+            </div>
            <p className="mt-8 text-indigo-400 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Ma'lumotlar yuklanmoqda...</p>
         </div>
       )}

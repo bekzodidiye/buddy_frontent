@@ -65,7 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({
    const navigate = useNavigate();
    
    const [activeTab, setActiveTab] = useState<'panel' | 'profile' | 'notifications'>(
-      (urlTab as any) || (localStorage.getItem('buddy_dashboard_tab') as any) || 'panel'
+      (urlTab as any) || 'panel'
    );
 
    useEffect(() => {
@@ -167,6 +167,15 @@ const Dashboard: React.FC<DashboardProps> = ({
 
    useEffect(() => {
       localStorage.setItem('buddy_dashboard_season', selectedSeason);
+      const activeSeason = seasons.find(s => s.id === selectedSeason);
+      const maxWeeks = (activeSeason?.durationInMonths || 3) * 4;
+      if (selectedWeek > maxWeeks) {
+         setSelectedWeek(maxWeeks);
+      }
+   }, [selectedSeason, seasons]);
+
+   useEffect(() => {
+      localStorage.setItem('buddy_dashboard_season', selectedSeason);
    }, [selectedSeason]);
 
    // Enhanced Body and Html scroll lock effect for Dashboard
@@ -229,7 +238,11 @@ const Dashboard: React.FC<DashboardProps> = ({
          }
          // Agar iconUrl o'zgarmagan URL bo'lsa (server URLi) — qayta yubormaslik
          const iconUrl = link.iconUrl?.startsWith('data:') ? link.iconUrl : undefined;
-         return { linkUrl: url, ...(iconUrl ? { iconUrl } : { iconUrl: link.iconUrl || '' }) };
+         return {
+            id: (link as any).id,
+            linkUrl: url,
+            ...(iconUrl ? { iconUrl } : { iconUrl: link.iconUrl || '' })
+         };
       }).filter(link => link.linkUrl.trim() !== '');
 
       // Faqat o'zgargan ma'lumotlarni yuborish
@@ -252,6 +265,7 @@ const Dashboard: React.FC<DashboardProps> = ({
          const success = await (onUpdateProfile as any)(payload);
          if (success !== false) {
             setIsEditingProfile(false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
          }
       } catch (err) {
          console.error('Profile save error', err);
@@ -377,11 +391,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
          const reader = new FileReader();
          reader.onloadend = () => {
-            const newLinks = [...(profileForm.socialLinks || [])];
-            if (newLinks[activeSocialLinkIndex]) {
-               newLinks[activeSocialLinkIndex].iconUrl = reader.result as string;
-               setProfileForm({ ...profileForm, socialLinks: newLinks });
-            }
+            const newLinks = (profileForm.socialLinks || []).map((link, idx) => 
+               idx === activeSocialLinkIndex ? { ...link, iconUrl: reader.result as string } : link
+            );
+            setProfileForm({ ...profileForm, socialLinks: newLinks });
             setActiveSocialLinkIndex(null);
             if (socialIconInputRef.current) socialIconInputRef.current.value = '';
          };
@@ -649,8 +662,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 className={`w-full bg-transparent border-b py-2 px-0 text-xs text-white transition-all outline-none ${link.linkUrl && !isValidUrl(link.linkUrl) ? 'border-red-500 text-red-200 shadow-[0_4px_12px_rgba(239,68,68,0.2)]' : 'border-white/5 focus:border-indigo-500'}`}
                                                 value={link.linkUrl}
                                                 onChange={(e) => {
-                                                   const newLinks = [...(profileForm.socialLinks || [])];
-                                                   newLinks[index].linkUrl = e.target.value;
+                                                   const newLinks = (profileForm.socialLinks || []).map((l, idx) => 
+                                                      idx === index ? { ...l, linkUrl: e.target.value } : l
+                                                   );
                                                    setProfileForm({ ...profileForm, socialLinks: newLinks });
                                                 }}
                                              />
@@ -859,10 +873,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                        href={link.linkUrl}
                                        target="_blank"
                                        rel="noopener noreferrer"
-                                       className="w-10 h-10 bg-[#1a1a1f] rounded-xl border border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all group"
+                                       className="w-10 h-10 bg-[#1a1a1f] rounded-xl border border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all group overflow-hidden"
                                     >
                                        {link.iconUrl ? (
-                                          <img src={link.iconUrl} className="w-5 h-5 object-cover rounded-md" />
+                                          <img src={link.iconUrl} className="w-full h-full object-cover" />
                                        ) : (
                                           <Link2 className="w-4 h-4 text-slate-500 group-hover:text-black transition-colors" />
                                        )}
@@ -1017,7 +1031,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-10">
                            <div>
                               <h2 className="text-indigo-500 font-black tracking-[0.3em] uppercase text-[9px] md:text-[10px] mb-2 md:mb-4 flex items-center gap-2"><Layout className="w-4 h-4" /> Boshqaruv Markazi</h2>
-                              <h1 className="text-4xl sm:text-5xl md:text-8xl font-black text-white tracking-tighter">Hafta #0{selectedWeek}</h1>
+                              <h1 className="text-4xl sm:text-5xl md:text-8xl font-black text-white tracking-tighter">Hafta #{selectedWeek.toString().padStart(2, '0')}</h1>
                            </div>
                         </div>
 
@@ -1046,7 +1060,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] leading-none mb-1">Haftalik</span>
                                     <span className="text-xl font-black text-white leading-none">#0{selectedWeek}</span>
                                  </div>
-                                 <button disabled={selectedWeek === 4} onClick={() => setSelectedWeek(w => w + 1)} className="w-12 h-full flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 rounded-2xl transition-all disabled:opacity-20 active:scale-90">
+                                 <button disabled={selectedWeek >= (seasons.find(s => s.id === selectedSeason)?.durationInMonths || 3) * 4} onClick={() => setSelectedWeek(w => w + 1)} className="w-12 h-full flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 rounded-2xl transition-all disabled:opacity-20 active:scale-90">
                                     <ChevronRight className="w-5 h-5" />
                                  </button>
                               </div>
@@ -1607,12 +1621,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 href={link.linkUrl}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="w-12 h-12 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all group"
+                                                className="w-10 h-10 bg-white/5 rounded-xl border border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all group overflow-hidden"
                                              >
                                                 {link.iconUrl ? (
-                                                   <img src={link.iconUrl} className="w-6 h-6 object-cover rounded-md" />
+                                                   <img src={link.iconUrl} className="w-full h-full object-cover" />
                                                 ) : (
-                                                   <Link2 className="w-5 h-5 text-slate-500 group-hover:text-black transition-colors" />
+                                                   <Link2 className="w-4 h-4 text-slate-500 group-hover:text-black transition-colors" />
                                                 )}
                                              </a>
                                           ))
@@ -1690,7 +1704,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="overflow-hidden pr-14 md:pr-20">
                            <h3 className="text-2xl md:text-4xl font-black text-white tracking-tight truncate">{editingProgress.studentName}</h3>
-                           <p className="text-[9px] md:text-[11px] font-black uppercase text-indigo-400 tracking-[0.2em] mt-2 truncate">Hafta #0{editingProgress.weekNumber} Monitoringini Tahrirlash</p>
+                           <p className="text-[9px] md:text-[11px] font-black uppercase text-indigo-400 tracking-[0.2em] mt-2 truncate">Hafta #{editingProgress.weekNumber.toString().padStart(2, '0')} Monitoringini Tahrirlash</p>
                         </div>
                      </div>
 

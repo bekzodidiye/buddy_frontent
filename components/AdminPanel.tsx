@@ -50,7 +50,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const { activeTab: urlTab } = useParams<{ activeTab: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'stats' | 'monitoring' | 'users' | 'requests' | 'seasons' | 'messages' | 'settings'>(
-    (urlTab as any) || (localStorage.getItem('buddy_admin_tab') as any) || 'monitoring'
+    (urlTab as any) || 'stats'
   );
 
   useEffect(() => {
@@ -177,23 +177,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       document.documentElement.style.overflow = '';
       setIsDirectMessaging(false);
     }
-          {isSendingMessage && (
-        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
-        </div>
-      )}
-
-  return () => {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-    };
-  }, [selectedUserForView]);
+    }, [selectedUserForView]);
 
   const [notificationSettings, setNotificationSettings] = useState(() => {
     const saved = localStorage.getItem('buddy_admin_notification_settings');
@@ -213,19 +197,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => setMonitoringPage(1), [monitoringSearch, monitoringCuratorFilter, monitoringStatusFilter, monitoringWeek, monitoringAttendanceFilter]);
 
   if (user?.role !== 'admin') {
-          {isSendingMessage && (
-        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
-        </div>
-      )}
-
-  return (
+    return (
       <div className="min-h-[70vh] flex items-center justify-center bg-[#0a0a0c]">
         <div className="text-center p-12 bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl border border-red-500/10 shadow-xl">
           <ShieldAlert className="w-20 h-20 text-red-500 mx-auto mb-6" />
@@ -410,7 +382,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     return allUsers.filter(u => u.assignedCuratorId === curator.id || u.startupCuratorId === curator.id);
   };
 
-        {isSendingMessage && (
+  return (
+    <section className="py-6 md:py-10 bg-[#0a0a0c] min-h-screen">
+      {isSendingMessage && (
         <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
           <div className="relative">
             <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
@@ -421,9 +395,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
         </div>
       )}
-
-  return (
-    <section className="py-6 md:py-10 bg-[#0a0a0c] min-h-screen">
       <div className="max-w-[1700px] mx-auto px-3 sm:px-4 lg:px-10">
         {/* ===== TOP CENTERED HEADER SECTION ===== */}
         <div className="flex flex-col items-center justify-center text-center mb-16">
@@ -520,8 +491,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-6 ml-2">Haftalik O'sish</h4>
                 <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={[1, 2, 3, 4].map(week => {
-                      const weekData = allProgress.filter(p => p.weekNumber === week);
+                    <AreaChart data={Array.from({ length: (seasons.find(s => s.id === activeSeasonId)?.durationInMonths || 3) * 4 }, (_, i) => i + 1).map(week => {
+                      const weekData = allProgress.filter(p => p.weekNumber === week && p.seasonId === activeSeasonId);
                       return {
                         name: `${week}-hafta`,
                         'Bajarildi': weekData.filter(p => p.status === 'Hal qilindi').length,
@@ -804,19 +775,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         <tbody className="divide-y divide-white/5">
                           {progress.map(item => {
                             const student = allUsers.find(u => u.name === item.studentName);
-                                  {isSendingMessage && (
-        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
-        </div>
-      )}
 
-  return (
+                            return (
                               <tr key={item.id} className="hover:bg-indigo-600/[0.03] transition-all duration-300">
                                 <td className="px-10 py-8">
                                   <div className="flex items-center gap-4 cursor-pointer group/name min-w-0" onClick={() => student && setSelectedUserForView(student)}>
@@ -856,19 +816,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="lg:hidden p-4 md:p-6 space-y-6">
                       {progress.map((item) => {
                         const student = allUsers.find(u => u.name === item.studentName);
-                              {isSendingMessage && (
-        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
-        </div>
-      )}
 
-  return (
+                            return (
                           <div key={item.id} className="p-4 sm:p-6 bg-white/5 border border-white/5 rounded-2xl space-y-5 shadow-xl">
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
                               <div className="flex items-center gap-3 cursor-pointer min-w-0 w-full flex-1 mr-4" onClick={() => student && setSelectedUserForView(student)}>
@@ -1618,7 +1567,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
                 <div className="overflow-hidden pr-14 md:pr-20">
                   <h3 className="text-2xl md:text-4xl font-black text-white tracking-tight truncate">{editingProgress.studentName}</h3>
-                  <p className="text-[9px] md:text-[11px] break-words font-black uppercase text-indigo-400 tracking-[0.2em] mt-2 truncate">Hafta #0{editingProgress.weekNumber} Monitoringini Tahrirlash</p>
+                  <p className="text-[9px] md:text-[11px] break-words font-black uppercase text-indigo-400 tracking-[0.2em] mt-2 truncate">Hafta #{editingProgress.weekNumber.toString().padStart(2, '0')} Monitoringini Tahrirlash</p>
                 </div>
               </div>
 
