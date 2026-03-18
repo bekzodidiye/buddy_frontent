@@ -1259,7 +1259,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <div className="space-y-4">
                 {notifications && notifications.length > 0 ? (
-                  [...notifications].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 20).map((notif) => (
+                  [...notifications].sort((a, b) => new Date(b.timestamp || (b as any).createdAt || Date.now()).getTime() - new Date(a.timestamp || (a as any).createdAt || Date.now()).getTime()).slice(0, 20).map((notif) => (
                     <div
                       key={notif.id}
                       className={`p-6 rounded-2xl border border-white/5 bg-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-indigo-500/30 transition-all ${!notif.isRead ? 'border-l-4 border-l-indigo-500' : ''}`}
@@ -1272,7 +1272,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                             }`} />
                           <h4 className="font-black text-white break-words text-sm">{notif.title}</h4>
                           <span className="text-[9px] font-bold text-slate-500 shrink-0 uppercase tracking-widest">
-                            {new Date(notif.timestamp).toLocaleString()}
+                            {new Date(notif.timestamp || (notif as any).createdAt || Date.now()).toLocaleString()}
                           </span>
                         </div>
                         <p className="text-slate-400 break-words text-xs leading-relaxed">{notif.message}</p>

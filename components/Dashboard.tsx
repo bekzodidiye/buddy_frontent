@@ -136,7 +136,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       return notifications.filter(notif => {
          // Faqat ro'yxatdan o'tgandan keyingi xabarlarni ko'rsatish
-         const notifTime = new Date(notif.timestamp).getTime();
+         const notifTime = new Date(notif.timestamp || (notif as any).createdAt || Date.now()).getTime();
          if (notifTime < userCreatedAt) return false;
 
          // If specific user ID is targeted, only show to that user
@@ -1516,7 +1516,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                        {notif.title}
                                     </h3>
                                     <span className="text-[10px] font-bold text-slate-600 shrink-0 uppercase tracking-widest">
-                                       {new Date(notif.timestamp).toLocaleDateString()}
+                                       {new Date(notif.timestamp || (notif as any).createdAt || Date.now()).toLocaleDateString()}
                                     </span>
                                  </div>
                                  <p className="text-slate-400 break-words leading-relaxed font-medium">
