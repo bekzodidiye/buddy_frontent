@@ -49,6 +49,10 @@ const BuddyStorage = {
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
   const [currentPage, setCurrentPage] = useState<Page>(() => {
     try {
       return (localStorage.getItem(BuddyStorage.KEYS.CURRENT_PAGE) as Page) || 'home';
@@ -214,6 +218,15 @@ const App: React.FC = () => {
           }
           return [...prev, data.monitoring];
         });
+      } else if (data.type === 'highlight_update') {
+        setWeeklyHighlights(prev => {
+          const id = data.highlight.id;
+          const exists = prev.some(h => String(h.id) === String(id));
+          if (exists) {
+            return prev.map(h => String(h.id) === String(id) ? data.highlight : h);
+          }
+          return [data.highlight, ...prev];
+        });
       } else if (data.type === 'user_status') {
         setOnlineUsers(prev => {
           const newSet = new Set(prev);
@@ -263,6 +276,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user) return; // Auth-protected data only for logged-in users
     const fetchData = async () => {
+      setIsDataLoading(true);
       try {
         const [usersRes, seasonsRes, monitorRes, hlRes, notifRes] = await Promise.all([
           api.get('users/').catch(() => ({ data: [] })),
@@ -294,6 +308,8 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.error("Data load error", e);
+      } finally {
+        setIsDataLoading(false);
       }
     };
 
@@ -351,6 +367,7 @@ const App: React.FC = () => {
         id: u.id,
         name: u.name,
         role: u.field || 'Mentor',
+        field: u.field || '',
         avatar: fixUrl(u.avatar) || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'Curator')}&background=6366f1&color=fff&size=400&bold=true`,
         bio: u.longBio?.slice(0, 100) || "Buddy jamoasining faol kuratori.",
         longBio: u.longBio || "Foydalanuvchi haqida ma'lumot yo'q.",
@@ -872,6 +889,16 @@ const App: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+            {isDataLoading && (
+        <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-[#0a0a0c] bg-opacity-90 backdrop-blur-xl transition-all duration-700">
+           <div className="relative">
+              <div className="w-24 h-24 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+              <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-indigo-500 animate-pulse" />
+           </div>
+           <p className="mt-8 text-indigo-400 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Ma'lumotlar yuklanmoqda...</p>
         </div>
       )}
 

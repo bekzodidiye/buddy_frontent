@@ -41,9 +41,11 @@ export interface TeamMember {
   id: string;
   name: string;
   role: string;
+  field?: string;
   avatar: string;
   bio: string;
   longBio: string;
+  field_description?: string; // some places might use this
   fieldDescription: string;
   motivationQuote: string;
   skills: string[];

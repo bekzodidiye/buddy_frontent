@@ -506,7 +506,15 @@ const Dashboard: React.FC<DashboardProps> = ({
          return highlights.filter(h =>
             String(h.seasonId || (h as any).season_id) === String(selectedSeason) &&
             Number(h.weekNumber || (h as any).week_number) === Number(selectedWeek)
-         );
+         ).sort((a, b) => {
+             const curatorA = (allUsers || []).find(u => String(u.id) === String(a.curatorId || (a as any).curator_id));
+             const curatorB = (allUsers || []).find(u => String(u.id) === String(b.curatorId || (b as any).curator_id));
+             const isStartupA = curatorA?.field === 'StartUp Community';
+             const isStartupB = curatorB?.field === 'StartUp Community';
+             if (!isStartupA && isStartupB) return -1;
+             if (isStartupA && !isStartupB) return 1;
+             return 0;
+          });
       }
       if (user?.role === 'student' && (user.assignedCuratorId || (user as any).assigned_curator_id || user.startupCuratorId || (user as any).startup_curator_id)) {
          const assignedId = user.assignedCuratorId || (user as any).assigned_curator_id;
@@ -518,7 +526,15 @@ const Dashboard: React.FC<DashboardProps> = ({
              return (String(hCuratorId) === String(assignedId) || String(hCuratorId) === String(startupId)) &&
                     String(hSeasonId) === String(selectedSeason) &&
                     Number(hWeekNum) === Number(selectedWeek);
-         });
+         }).sort((a, b) => {
+             const curatorA = (allUsers || []).find(u => String(u.id) === String(a.curatorId || (a as any).curator_id));
+             const curatorB = (allUsers || []).find(u => String(u.id) === String(b.curatorId || (b as any).curator_id));
+             const isStartupA = curatorA?.field === 'StartUp Community';
+             const isStartupB = curatorB?.field === 'StartUp Community';
+             if (!isStartupA && isStartupB) return -1;
+             if (isStartupA && !isStartupB) return 1;
+             return 0;
+          });
       }
       return [];
    }, [highlights, user, selectedSeason, selectedWeek]);
