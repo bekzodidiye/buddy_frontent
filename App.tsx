@@ -110,18 +110,7 @@ const App: React.FC = () => {
   const [isCuratorRegistrationOpen, setIsCuratorRegistrationOpen] = useState(true);
 
   // Notifications State
-  const [notifications, setNotifications] = useState<Notification[]>(() => BuddyStorage.load(BuddyStorage.KEYS.NOTIFICATIONS, [
-    {
-      id: 'n1',
-      title: 'Xush kelibsiz!',
-      message: 'Buddy Team portalining yangi talqiniga xush kelibsiz. Monitoring bo\'limini tekshirishni unutmang.',
-      type: 'info',
-      timestamp: new Date().toISOString(),
-      isRead: false,
-      targetRole: 'all',
-      sender: 'Sistema'
-    }
-  ]));
+  const [notifications, setNotifications] = useState<Notification[]>(() => BuddyStorage.load(BuddyStorage.KEYS.NOTIFICATIONS, []));
 
   const filteredNotifications = useMemo(() => {
     if (!user) return [];
@@ -304,13 +293,21 @@ const App: React.FC = () => {
         setAllStudentsData(monitorRes.data);
         setWeeklyHighlights(hlRes.data);
 
-        // Bildirishnomalarni overwrite qilmaymiz, balki merge qilamiz
+        // Bildirishnomalarni yangilaymiz (server statusi ustuvor)
         if (notifRes.data && Array.isArray(notifRes.data)) {
           setNotifications(prev => {
-            const existingIds = new Set(prev.map(n => n.id));
-            const newOnes = notifRes.data.filter((n: any) => !existingIds.has(n.id));
-            if (newOnes.length === 0) return prev;
-            return [...newOnes, ...prev].sort((a, b) =>
+            const serverNotifs = notifRes.data as Notification[];
+            const serverNotifMap = new Map(serverNotifs.map(n => [n.id, n]));
+            const merged = [...serverNotifs];
+            
+            // Serverda yo'q bo'lgan (masalan, hali keshdagi yoki WebSocket orqali kelgan) xabarlarni saqlaymiz
+            for (const local of prev) {
+               if (!serverNotifMap.has(local.id)) {
+                  merged.push(local);
+               }
+            }
+            
+            return merged.sort((a, b) =>
               new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
             );
           });
@@ -333,10 +330,15 @@ const App: React.FC = () => {
         setAllUsers(usersRes.data);
         if (notifRes.data && Array.isArray(notifRes.data)) {
           setNotifications(prev => {
-            const existingIds = new Set(prev.map(n => n.id));
-            const newOnes = notifRes.data.filter((n: any) => !existingIds.has(n.id));
-            if (newOnes.length === 0) return prev;
-            return [...newOnes, ...prev].sort((a, b) =>
+            const serverNotifs = notifRes.data as Notification[];
+            const serverNotifMap = new Map(serverNotifs.map(n => [n.id, n]));
+            const merged = [...serverNotifs];
+            for (const local of prev) {
+               if (!serverNotifMap.has(local.id)) {
+                  merged.push(local);
+               }
+            }
+            return merged.sort((a, b) =>
               new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
             );
           });
