@@ -99,12 +99,12 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onAuthNavigate
                   key={`${link.id}-${link.name}`}
                   onClick={() => handleLinkClick(link.id, (link as any).tab)}
                   className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-2 relative group-nav ${
-                    currentPage === link.id && (!user || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab')))
+                    currentPage === link.id && (!user || !(link as any).tab || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab')))
                     ? 'text-white'
                     : 'text-slate-400 hover:text-white'
                     }`}
                 >
-                  {currentPage === link.id && (!user || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab'))) && (
+                  {currentPage === link.id && (!user || !(link as any).tab || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab'))) && (
                     <motion.div
                       layoutId="nav-active"
                       className="absolute inset-0 bg-white/10 border border-white/10 rounded-xl -z-10"
@@ -186,10 +186,10 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onAuthNavigate
                   key={`${link.id}-${link.name}`}
                   onClick={() => handleLinkClick(link.id, (link as any).tab)}
                   className={`flex items-center space-x-4 p-5 rounded-2xl text-lg font-black tracking-tight transition-all relative ${
-                    currentPage === link.id ? 'text-white' : 'text-slate-400'
+                    (currentPage === link.id && (!user || !(link as any).tab || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab')))) ? 'text-white' : 'text-slate-400'
                     }`}
                 >
-                  {currentPage === link.id && (
+                  {(currentPage === link.id && (!user || !(link as any).tab || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab')))) && (
                     <motion.div
                       layoutId="nav-mobile-active"
                       className="absolute inset-0 bg-indigo-600/20 border border-indigo-500/20 rounded-2xl -z-10"
