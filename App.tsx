@@ -180,6 +180,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error("Failed to authenticate user", err);
+        setIsDataLoading(false);
       } finally {
         setIsLoading(false);
       }
@@ -269,6 +270,11 @@ const App: React.FC = () => {
         const token = localStorage.getItem('access_token');
         if (!token) {
           setIsDataLoading(false);
+        } else {
+           // Fallback: if data is still loading after 5 seconds, release it anyway
+           setTimeout(() => {
+              setIsDataLoading(false);
+           }, 5000);
         }
       }
     };
@@ -312,10 +318,7 @@ const App: React.FC = () => {
       } catch (e) {
         console.error("Data load error", e);
       } finally {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          setIsDataLoading(false);
-        }
+        setIsDataLoading(false);
       }
     };
 
