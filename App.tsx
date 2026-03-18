@@ -668,23 +668,34 @@ const App: React.FC = () => {
   };
 
   const handleMarkNotificationAsRead = async (id: string | 'all') => {
-    try {
-      if (id === 'all') {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        const realUnreadIds = (filteredNotifications || [])
-          .filter(n => !n.isRead && uuidRegex.test(String(n.id)))
-          .map(n => n.id);
-          
-        if (realUnreadIds.length > 0) {
-          await Promise.all(realUnreadIds.map(uid => api.patch(`notifications/${uid}/`, { isRead: true })));
+    const markAsRead = async () => {
+      try {
+        if (id === 'all') {
+          await api.post('notifications/mark_all_read/');
+          setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        } else {
+          // If the ID is a UUID (server notification)
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(String(id))) {
+            await api.patch(`notifications/${id}/`, { isRead: true });
+          }
+          setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
         }
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      } else {
-        await api.patch(`notifications/${id}/`, { isRead: true });
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      } catch (e) {
+        console.error("Xabarlarni o'qilgan deb belgilashda xatolik:", e);
       }
-    } catch (e) {
-      console.error("Xabarlarni o'qilgan deb belgilashda xatolik:", e);
+    };
+
+    if (id === 'all') {
+      confirmThis(
+        "Tasdiqlash",
+        "Barcha bildirishnomalarni o'qilgan deb belgilamoqchimisiz?",
+        markAsRead,
+        'info',
+        "HA, BELGILASH"
+      );
+    } else {
+      markAsRead();
     }
   };
 
