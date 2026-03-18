@@ -794,7 +794,7 @@ const App: React.FC = () => {
             handleAddNotification({
               id: Math.random().toString(36).substr(2, 9),
               title: 'Yangi O\'quvchi Qo\'shildi',
-              message: `${user!.username} sizni o'z kuratori sifatida tanladi.`,
+              message: `${user!.username} kurator sifatida ${curator?.username}ni tanladi.`,
               type: 'success',
               timestamp: new Date().toISOString(),
               isRead: false,
@@ -985,6 +985,7 @@ const App: React.FC = () => {
                   onSendNotification={handleAddNotification}
                   notifications={notifications}
                   onMarkAsRead={handleMarkNotificationAsRead}
+                  onMarkAllRead={() => handleMarkNotificationAsRead('all')}
                 />
               </div>
             ) : user ? (
