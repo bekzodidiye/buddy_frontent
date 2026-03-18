@@ -986,6 +986,7 @@ const App: React.FC = () => {
                   notifications={notifications}
                   onMarkAsRead={handleMarkNotificationAsRead}
                   onMarkAllRead={() => handleMarkNotificationAsRead('all')}
+                  isDataSaving={isDataSaving}
                 />
               </div>
             ) : user ? (

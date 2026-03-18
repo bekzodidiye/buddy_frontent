@@ -37,6 +37,7 @@ interface AdminPanelProps {
   onSendNotification: (notif: any) => void;
   onMarkAsRead: (id: string) => void;
   onMarkAllRead?: () => void;
+  isDataSaving?: boolean;
   notifications: Notification[];
 }
 
@@ -44,7 +45,7 @@ const ITEMS_PER_PAGE = 15;
 
 const AdminPanel: React.FC<AdminPanelProps> = ({
   user, allUsers, allProgress, onDeleteUser, onChangeRole, onApproveUser, onChangeStatus,
-  isRegistrationOpen, onToggleRegistration, isCuratorRegistrationOpen, onToggleCuratorRegistration, seasons, activeSeasonId, onSwitchSeason, onStartNewSeason, onUpdateSeason, onDeleteSeason, onSendNotification, onUpdateProgress, notifications, onMarkAsRead, onMarkAllRead
+  isRegistrationOpen, onToggleRegistration, isCuratorRegistrationOpen, onToggleCuratorRegistration, seasons, activeSeasonId, onSwitchSeason, onStartNewSeason, onUpdateSeason, onDeleteSeason, onSendNotification, onUpdateProgress, notifications, onMarkAsRead, onMarkAllRead, isDataSaving
 }) => {
   const { activeTab: urlTab } = useParams<{ activeTab: string }>();
   const navigate = useNavigate();
@@ -64,6 +65,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     localStorage.setItem('buddy_admin_tab', tab);
   };
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [monitoringWeek, setMonitoringWeek] = useState(() => Number(localStorage.getItem('buddy_admin_monitoring_week')) || 1);
   const [monitoringSeasonId, setMonitoringSeasonId] = useState(activeSeasonId);
 
@@ -81,7 +83,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       icon: (
         <div className="relative">
           <Mail className="w-4 h-4" />
-          {unreadMessagesCount > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-white/20" />}
+          {unreadMessagesCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-1 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-pulse border border-[#0f0f12]">
+              {unreadMessagesCount}
+            </span>
+          )}
         </div>
       )
     },
@@ -171,7 +177,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       document.documentElement.style.overflow = '';
       setIsDirectMessaging(false);
     }
-    return () => {
+          {isSendingMessage && (
+        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
+        </div>
+      )}
+
+  return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
@@ -195,7 +213,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => setMonitoringPage(1), [monitoringSearch, monitoringCuratorFilter, monitoringStatusFilter, monitoringWeek, monitoringAttendanceFilter]);
 
   if (user?.role !== 'admin') {
-    return (
+          {isSendingMessage && (
+        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
+        </div>
+      )}
+
+  return (
       <div className="min-h-[70vh] flex items-center justify-center bg-[#0a0a0c]">
         <div className="text-center p-12 bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl border border-red-500/10 shadow-xl">
           <ShieldAlert className="w-20 h-20 text-red-500 mx-auto mb-6" />
@@ -304,13 +334,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSendMessage = async () => {
     if (!messageForm.title || !messageForm.message) return;
     setSendResult(null);
+    setIsSendingMessage(true);
     try {
       await onSendNotification({
         title: messageForm.title,
         message: messageForm.message,
         type: messageForm.type,
         targetRole: messageForm.targetRole,
-        isRead: false,
+        isRead: true,
         sender: user?.name || 'Admin'
       });
       setMessageForm({ title: '', message: '', type: 'info', targetRole: 'all' });
@@ -320,12 +351,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       setSendResult({ ok: false, msg: `Xatolik: ${e?.response?.data ? JSON.stringify(e.response.data) : e.message}` });
     } finally {
       setTimeout(() => setSendResult(null), 4000);
+      setIsSendingMessage(false);
     }
   };
 
   const handleSendDirectMessage = async () => {
     if (!selectedUserForView || !directMessageForm.title || !directMessageForm.message) return;
     setSendResult(null);
+    setIsSendingMessage(true);
     try {
       await onSendNotification({
         title: directMessageForm.title,
@@ -333,7 +366,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         type: directMessageForm.type,
         targetRole: 'none',
         targetUserId: selectedUserForView.id,
-        isRead: false,
+        isRead: true,
         sender: user?.name || 'Admin'
       });
       setDirectMessageForm({ title: '', message: '', type: 'info' });
@@ -344,6 +377,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       setSendResult({ ok: false, msg: `Xatolik: ${e?.response?.data ? JSON.stringify(e.response.data) : e.message}` });
     } finally {
       setTimeout(() => setSendResult(null), 4000);
+      setIsSendingMessage(false);
     }
   };
 
@@ -357,6 +391,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       setSendResult({ ok: false, msg: `Mavsumda xatolik: ${e?.response?.data ? JSON.stringify(e.response.data) : e.message}` });
     } finally {
       setTimeout(() => setSendResult(null), 4000);
+      setIsSendingMessage(false);
     }
   };
 
@@ -374,6 +409,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!curator || curator.role !== 'curator') return [];
     return allUsers.filter(u => u.assignedCuratorId === curator.id || u.startupCuratorId === curator.id);
   };
+
+        {isSendingMessage && (
+        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
+        </div>
+      )}
 
   return (
     <section className="py-6 md:py-10 bg-[#0a0a0c] min-h-screen">
@@ -757,7 +804,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         <tbody className="divide-y divide-white/5">
                           {progress.map(item => {
                             const student = allUsers.find(u => u.name === item.studentName);
-                            return (
+                                  {isSendingMessage && (
+        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
+        </div>
+      )}
+
+  return (
                               <tr key={item.id} className="hover:bg-indigo-600/[0.03] transition-all duration-300">
                                 <td className="px-10 py-8">
                                   <div className="flex items-center gap-4 cursor-pointer group/name min-w-0" onClick={() => student && setSelectedUserForView(student)}>
@@ -797,7 +856,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="lg:hidden p-4 md:p-6 space-y-6">
                       {progress.map((item) => {
                         const student = allUsers.find(u => u.name === item.studentName);
-                        return (
+                              {isSendingMessage && (
+        <div className="fixed inset-0 z-[1500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Send className="w-8 h-8 text-indigo-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="mt-6 text-white font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Xabar yuborilmoqda...</p>
+        </div>
+      )}
+
+  return (
                           <div key={item.id} className="p-4 sm:p-6 bg-white/5 border border-white/5 rounded-2xl space-y-5 shadow-xl">
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
                               <div className="flex items-center gap-3 cursor-pointer min-w-0 w-full flex-1 mr-4" onClick={() => student && setSelectedUserForView(student)}>
