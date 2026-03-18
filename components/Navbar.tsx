@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import imgArt from '../buddy_team.jpg';
 import { Menu, X, Users, Home, Layout, Mail, Zap, LogIn, LogOut, UserCircle, ShieldAlert, Bell, Activity, Calendar } from 'lucide-react';
 import { Page, UserData } from '../types';
@@ -97,11 +98,19 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onAuthNavigate
                 <button
                   key={`${link.id}-${link.name}`}
                   onClick={() => handleLinkClick(link.id, (link as any).tab)}
-                  className={`px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-2 relative ${currentPage === link.id && (!user || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab')))
-                    ? 'text-white bg-white/10 border border-white/10'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-2 relative group-nav ${
+                    currentPage === link.id && (!user || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab')))
+                    ? 'text-white'
+                    : 'text-slate-400 hover:text-white'
                     }`}
                 >
+                  {currentPage === link.id && (!user || (link as any).tab === (user.role === 'admin' ? localStorage.getItem('buddy_admin_tab') : localStorage.getItem('buddy_dashboard_tab'))) && (
+                    <motion.div
+                      layoutId="nav-active"
+                      className="absolute inset-0 bg-white/10 border border-white/10 rounded-xl -z-10"
+                      transition={{ type: "spring", bounce: 0.25, duration: 0.5 }}
+                    />
+                  )}
                   {link.icon}
                   <span>{link.name}</span>
                   {(link.id === 'dashboard' || link.id === 'admin') && unreadCount > 0 && link.name === 'Bildirishnomalar' && (
@@ -176,9 +185,17 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate, onAuthNavigate
                 <button
                   key={`${link.id}-${link.name}`}
                   onClick={() => handleLinkClick(link.id, (link as any).tab)}
-                  className={`flex items-center space-x-4 p-5 rounded-2xl text-lg font-black tracking-tight transition-all relative ${currentPage === link.id ? 'text-indigo-400 bg-white/10 shadow-inner' : 'text-slate-300 hover:bg-white/5'
+                  className={`flex items-center space-x-4 p-5 rounded-2xl text-lg font-black tracking-tight transition-all relative ${
+                    currentPage === link.id ? 'text-white' : 'text-slate-400'
                     }`}
                 >
+                  {currentPage === link.id && (
+                    <motion.div
+                      layoutId="nav-mobile-active"
+                      className="absolute inset-0 bg-indigo-600/20 border border-indigo-500/20 rounded-2xl -z-10"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
                   <div className={`${currentPage === link.id ? 'text-indigo-400' : 'text-slate-500'}`}>
                     {link.icon}
                   </div>

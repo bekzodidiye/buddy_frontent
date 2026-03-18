@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, ShieldCheck, Mail, Lock, ArrowRight, Github, Chrome, ChevronLeft, Loader2, Briefcase, AtSign, ShieldAlert } from 'lucide-react';
+import { User, ShieldCheck, Mail, Lock, Eye, EyeOff, ArrowRight, Github, Chrome, ChevronLeft, Loader2, Briefcase, AtSign, ShieldAlert } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { UserData } from '../types';
 import api from '../api';
@@ -21,6 +21,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
   });
   const [role, setRole] = useState<'student' | 'curator' | 'admin'>('student');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Mavsumiy cheklov
   useEffect(() => {
@@ -284,10 +285,17 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
                   value={formData.password}
                   onChange={handleInputChange}
                   disabled={mode === 'signup' && regStep === 2}
-                  type="password"
-                  className="w-full bg-white/5 border border-white/5 rounded-2xl py-3.5 md:py-4 pl-12 pr-6 text-white text-sm md:text-base focus:outline-none focus:border-indigo-500 transition-colors shadow-inner disabled:opacity-50"
+                  type={showPassword ? "text" : "password"}
+                  className="w-full bg-white/5 border border-white/5 rounded-2xl py-3.5 md:py-4 pl-12 pr-12 text-white text-sm md:text-base focus:outline-none focus:border-indigo-500 transition-colors shadow-inner disabled:opacity-50"
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
