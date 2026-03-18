@@ -266,7 +266,10 @@ const App: React.FC = () => {
       } catch (e) {
         console.error('Public data load error', e);
       } finally {
-        setIsDataLoading(false);
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setIsDataLoading(false);
+        }
       }
     };
     fetchPublicData();
@@ -309,7 +312,10 @@ const App: React.FC = () => {
       } catch (e) {
         console.error("Data load error", e);
       } finally {
-        setIsDataLoading(false);
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setIsDataLoading(false);
+        }
       }
     };
 

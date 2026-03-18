@@ -28,6 +28,7 @@ interface DashboardProps {
    onUnassignStudent?: (studentId: string) => void;
    onlineUsers?: Set<string>;
    isDataSaving?: boolean;
+   isLoading?: boolean;
 }
 
 const isValidUrl = (url: string) => {
@@ -57,7 +58,8 @@ const Dashboard: React.FC<DashboardProps> = ({
    onAssignStudent,
    onUnassignStudent,
    onlineUsers,
-   isDataSaving
+   isDataSaving,
+   isLoading
 }) => {
    const { activeTab: urlTab } = useParams<{ activeTab: string }>();
    const navigate = useNavigate();
@@ -1190,10 +1192,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     </div>
                                  </div>
                               )) : (
-                                 <div className="py-32 text-center bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-[3rem] border-dashed border-2 border-white/5">
-                                    <Activity className="w-16 h-16 text-slate-800 mx-auto mb-6 opacity-20" />
-                                    <p className="text-xl font-black text-slate-700 uppercase tracking-widest">Ma'lumotlar mavjud emas</p>
-                                 </div>
+                                 (!isLoading ? (
+                                   <div className="py-32 text-center bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-[3rem] border-dashed border-2 border-white/5">
+                                      <Activity className="w-16 h-16 text-slate-800 mx-auto mb-6 opacity-20" />
+                                      <p className="text-xl font-black text-slate-700 uppercase tracking-widest">Ma'lumotlar mavjud emas</p>
+                                   </div>
+                                 ) : null)
                               )
                            ) : (
                               <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[3.5rem] overflow-hidden shadow-2xl bg-[#0a0a0c]/60">
@@ -1258,7 +1262,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                    </td>
                                                 </tr>
                                              );
-                                          }) : (<tr><td colSpan={8} className="py-12 text-center text-slate-500 italic">Hozircha ma'lumot yo'q</td></tr>)}
+                                          }) : (!isLoading ? (<tr><td colSpan={8} className="py-12 text-center text-slate-500 italic">Hozircha ma'lumot yo'q</td></tr>) : null)}
                                        </tbody>
                                     </table>
                                  </div>
@@ -1323,10 +1327,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                           </div>
                                        );
                                     }) : (
-                                       <div className="py-12 text-center">
-                                          <Activity className="w-12 h-12 text-slate-800 mx-auto mb-4 opacity-20" />
-                                          <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Ma'lumotlar mavjud emas</p>
-                                       </div>
+                                       (!isLoading ? (
+                                         <div className="py-12 text-center">
+                                            <Activity className="w-12 h-12 text-slate-800 mx-auto mb-4 opacity-20" />
+                                            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Ma'lumotlar mavjud emas</p>
+                                         </div>
+                                       ) : null)
                                     )}
                                  </div>
                               </div>
