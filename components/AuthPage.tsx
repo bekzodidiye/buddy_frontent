@@ -51,7 +51,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
     password: '',
     field: ''
   });
-  const [regStep, setRegStep] = useState(1); // 1: Intra Check, 2: Full Info
+  const [regStep, setRegStep] = useState(1); // 1: Username Check, 2: Full Info
   const [error, setError] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +78,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
         }
         setIsLoading(true);
         try {
-          const res = await api.post('auth/validate-intra/', {
+          const res = await api.post('auth/validate-Username/', {
             username: formData.username,
             password: formData.password
           });
@@ -93,7 +93,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
           }
         } catch (err: any) {
           setError(err.response?.data?.detail || 'School21 login yoki parol noto\'g\'ri');
-          console.error("Intra error:", err.response?.data);
+          console.error("Username error:", err.response?.data);
         } finally {
           setIsLoading(false);
         }
@@ -248,10 +248,16 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
                   name="username"
                   value={formData.username}
                   onChange={handleInputChange}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      document.getElementById('password-input')?.focus();
+                    }
+                  }}
                   disabled={mode === 'signup' && regStep === 2}
                   type="text"
                   className="w-full bg-white/5 border border-white/5 rounded-2xl py-3.5 md:py-4 pl-12 pr-6 text-white text-sm md:text-base focus:outline-none focus:border-indigo-500 transition-colors shadow-inner disabled:opacity-50"
-                  placeholder="Intra login"
+                  placeholder="Username"
                 />
               </div>
             </div>
@@ -289,6 +295,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                 <input
+                  id="password-input"
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}

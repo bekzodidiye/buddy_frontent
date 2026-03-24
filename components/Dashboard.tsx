@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
    Trash2, Edit2, Save, X, Quote, Plus, Settings, Activity, Users, Loader2,
    ChevronLeft, ChevronRight, Calendar, Camera, Maximize2,
-   UploadCloud, Layout, User, Clock, Lock, UserCircle, Target, AlertCircle, AlertTriangle, Lightbulb, UserCheck, UserX, History, Bookmark, Award, BarChart3, TrendingUp, CheckCircle2, XCircle, ChevronRight as ChevronRightIcon, Link2, ExternalLink, Zap, Code, FileText, Bell, Info, Image as ImageIcon, ChevronDown, Briefcase, Eye, EyeOff, Mail, ShieldCheck
+   UploadCloud, Layout, User, Clock, Lock, UserCircle, Target, AlertCircle, AlertTriangle, Lightbulb, UserCheck, UserX, History, Bookmark, Award, BarChart3, TrendingUp, CheckCircle2, XCircle, ChevronRight as ChevronRightIcon, Link2, ExternalLink, Zap, Code, FileText, Bell, Info, Image as ImageIcon, ChevronDown, Briefcase, Eye, EyeOff, Mail, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { UserData, StudentProgress, WeeklyHighlight, Season, Notification } from '../types';
 import CustomDropdown from './CustomDropdown';
@@ -215,6 +215,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       name: user?.name || '',
       username: user?.username || '',
       email: user?.email || '',
+      password: '',
       avatar: user?.avatar || '',
       field: user?.field || '',
       longBio: user?.longBio || '',
@@ -248,13 +249,18 @@ const Dashboard: React.FC<DashboardProps> = ({
       // Faqat o'zgargan ma'lumotlarni yuborish
       const payload: Record<string, any> = {
          name: profileForm.name,
+         username: profileForm.username,
          field: profileForm.field,
          longBio: profileForm.longBio,
          fieldDescription: profileForm.fieldDescription,
          motivationQuote: profileForm.motivationQuote,
-         skills: profileForm.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
+         skills: (profileForm.skills || '').split(',').map(s => s.trim()).filter(s => s !== ''),
          socialLinks: validatedSocialLinks
       };
+
+      if (profileForm.password && profileForm.password !== user?.password) {
+         payload.password = profileForm.password;
+      }
 
       // Avatarni faqat yangi base64 rasm bo'lsa yuborish
       if (profileForm.avatar?.startsWith('data:')) {
@@ -607,7 +613,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                            <button onClick={() => setIsEditingProfile(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-3 rounded-2xl bg-white/5 hover:bg-red-500/20 text-white hover:text-red-400 transition-colors z-[10] shadow-lg">
                               <X className="w-5 h-5" />
                            </button>
-                        <div className="flex flex-col lg:flex-row gap-8 md:gap-10 items-start">
+                           <div className="flex flex-col lg:flex-row gap-8 md:gap-10 items-start">
                            {/* Avatar */}
                            <div
                               className="w-32 h-32 md:w-48 md:h-48 rounded-[2rem] bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-2xl shrink-0 group cursor-pointer relative overflow-hidden mx-auto lg:mx-0"
@@ -716,14 +722,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest ml-1">USERNAME (@)</label>
                                     <input
                                        type="text"
-                                       disabled
-                                       className="w-full bg-[#121214] border border-white/5 rounded-2xl py-4 px-6 text-slate-500 cursor-not-allowed outline-none font-medium"
+                                       disabled={user?.role !== 'admin'}
+                                       className={`w-full bg-[#121214] border border-white/5 rounded-2xl py-4 px-6 text-white outline-none font-medium transition-all ${user?.role === 'admin' ? 'focus:border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.05)]' : 'text-slate-500 cursor-not-allowed'}`}
                                        value={profileForm.username}
+                                       onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
                                     />
                                  </div>
                               </div>
 
-                              <div className="grid grid-cols-1 gap-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                  <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest ml-1">EMAIL MANZILINGIZ</label>
                                     <input
@@ -733,9 +740,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                                        value={profileForm.email}
                                     />
                                  </div>
+                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest ml-1">YANGI PAROL (Ixtiyoriy)</label>
+                                    <div className="relative group/pass">
+                                       <input
+                                          type={showPassword ? "text" : "password"}
+                                          className="w-full bg-[#121214] border border-white/5 rounded-2xl py-4 px-6 text-white focus:border-indigo-500 transition-all outline-none font-medium pr-14"
+                                          value={profileForm.password}
+                                          onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                                          placeholder="Parolni kiriting..."
+                                       />
+                                       <button 
+                                          onClick={(e) => { e.preventDefault(); setShowPassword(!showPassword); }}
+                                          className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-white transition-colors"
+                                       >
+                                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                       </button>
+                                    </div>
+                                 </div>
+                              </div>
                               </div>
                            </div>
-                        </div>
 
                         {user?.role !== 'admin' && (
                            <>
@@ -850,13 +875,118 @@ const Dashboard: React.FC<DashboardProps> = ({
                            </button>
                         </div>
                      </div>
-                     </div>
-                   )}
+                  </div>
+               )}
 
                    {/* STATIC VIEW */}
-                   <div className={`grid grid-cols-1 gap-8 md:gap-12 animate-in fade-in duration-500 ${user?.role === 'admin' ? 'max-w-2xl mx-auto w-full' : 'lg:grid-cols-5'}`}>
+                   {user?.role === 'admin' ? (
+                       <div className="max-w-4xl mx-auto animate-in fade-in zoom-in-95 duration-700 w-full mb-20 px-2 sm:px-0 mt-8">
+                           <div className="bg-[#0f0f12]/80 backdrop-blur-3xl rounded-[3rem] p-1.5 relative overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.8)] border border-white/5 group">
+                               {/* Animated Gradient Background Blobs for Premium Feel */}
+                               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-indigo-500/20 via-purple-500/10 to-transparent blur-[120px] rounded-full pointer-events-none opacity-50 group-hover:opacity-100 transition-opacity duration-1000"></div>
+                               <div className="absolute -bottom-32 -right-32 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none opacity-30"></div>
+                               
+                               <div className="bg-[#121214]/80 backdrop-blur-xl rounded-[2.8rem] p-8 md:p-16 relative z-10 flex flex-col items-center text-center border border-white/5">
+                                   <div className="relative mb-10 group/avatar">
+                                       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-[2.5rem] blur-2xl opacity-30 group-hover/avatar:opacity-60 transition-opacity duration-700 pointer-events-none"></div>
+                                       <div className="w-40 h-40 md:w-52 md:h-52 rounded-[2.5rem] bg-gradient-to-br from-indigo-500 to-purple-600 p-1 shadow-2xl relative z-10 scale-95 group-hover/avatar:scale-100 transition-transform duration-500">
+                                            <div className="w-full h-full bg-[#0a0a0c] rounded-[2.3rem] overflow-hidden relative">
+                                                {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover transition-transform duration-700 group-hover/avatar:scale-110" /> : <ShieldAlert className="w-full h-full text-indigo-400 p-12" />}
+                                            </div>
+                                       </div>
+                                       <div className="absolute -bottom-4 -right-4 w-14 h-14 md:w-16 md:h-16 bg-[#0a0a0c] rounded-2xl flex items-center justify-center border border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.5)] z-20">
+                                            <Zap className="w-6 h-6 md:w-7 md:h-7 text-indigo-400 animate-pulse" />
+                                       </div>
+                                   </div>
+
+                                   <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-4 drop-shadow-2xl">{user?.name}</h2>
+                                   
+                                   <div className="flex items-center gap-3 px-6 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full mb-10 shadow-[0_0_20px_rgba(99,102,241,0.15)] flex-shrink-0">
+                                       <Activity className="w-4 h-4 text-indigo-400" />
+                                       <p className="text-indigo-400 font-black text-[10px] md:text-xs uppercase tracking-[0.3em] mt-0.5">BOSH ADMINISTRATOR</p>
+                                   </div>
+
+                                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full mb-12 relative z-10 max-w-4xl mx-auto">
+                                        <div className="bg-[#1a1a1f]/80 backdrop-blur-md border border-indigo-500/20 rounded-3xl p-5 flex flex-col items-center hover:bg-indigo-500/10 transition-all shadow-lg text-center group">
+                                           <div className="p-3 bg-indigo-500/10 rounded-2xl mb-3 group-hover:scale-110 transition-transform"><Users className="w-6 h-6 text-indigo-400" /></div>
+                                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">O'quvchilar</p>
+                                           <p className="text-3xl font-black text-white drop-shadow-lg">{(allUsers || []).filter(u => u.role === 'student').length}</p>
+                                        </div>
+                                        <div className="bg-[#1a1a1f]/80 backdrop-blur-md border border-purple-500/20 rounded-3xl p-5 flex flex-col items-center hover:bg-purple-500/10 transition-all shadow-lg text-center group">
+                                           <div className="p-3 bg-purple-500/10 rounded-2xl mb-3 group-hover:scale-110 transition-transform"><ShieldCheck className="w-6 h-6 text-purple-400" /></div>
+                                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Kuratorlar</p>
+                                           <p className="text-3xl font-black text-white drop-shadow-lg">{(allUsers || []).filter(u => u.role === 'curator').length}</p>
+                                        </div>
+                                        <div className="bg-[#1a1a1f]/80 backdrop-blur-md border border-emerald-500/20 rounded-3xl p-5 flex flex-col items-center hover:bg-emerald-500/10 transition-all shadow-lg text-center group">
+                                           <div className="p-3 bg-emerald-500/10 rounded-2xl mb-3 group-hover:scale-110 transition-transform"><Activity className="w-6 h-6 text-emerald-400" /></div>
+                                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Monitoring</p>
+                                           <p className="text-3xl font-black text-white drop-shadow-lg">{(studentsData || []).length}</p>
+                                        </div>
+                                        <div className="bg-[#1a1a1f]/80 backdrop-blur-md border border-amber-500/20 rounded-3xl p-5 flex flex-col items-center hover:bg-amber-500/10 transition-all shadow-lg text-center group">
+                                           <div className="p-3 bg-amber-500/10 rounded-2xl mb-3 group-hover:scale-110 transition-transform"><Calendar className="w-6 h-6 text-amber-400" /></div>
+                                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Mavsumlar</p>
+                                           <p className="text-3xl font-black text-white drop-shadow-lg">{(seasons || []).length}</p>
+                                        </div>
+                                   </div>
+
+                                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-2xl mb-12">
+                                       <div className="flex-1 w-full bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col items-center hover:bg-white/10 transition-colors">
+                                           <div className="p-3 bg-white/5 rounded-xl mb-4 border border-white/5"><UserCircle className="w-5 h-5 text-slate-400" /></div>
+                                           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-2">Username</p>
+                                           <p className="text-white font-black text-base md:text-lg truncate w-full px-2">@{user?.username}</p>
+                                       </div>
+                                       <div className="flex-1 w-full bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col items-center hover:bg-white/10 transition-colors">
+                                           <div className="p-3 bg-white/5 rounded-xl mb-4 border border-white/5"><Mail className="w-5 h-5 text-slate-400" /></div>
+                                           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-2">Pochta Manzili</p>
+                                           <p className="text-white font-black text-base md:text-lg truncate w-full px-2">{user?.email}</p>
+                                       </div>
+                                   </div>
+
+                                   <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-6 flex items-center gap-2 mt-4 text-center justify-center"><Zap className="w-3 h-3 text-amber-500" /> Tezkor Amallar</h3>
+                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mb-12">
+                                       <button onClick={() => navigate('/admin/users')} className="p-6 bg-white/5 border border-white/5 rounded-3xl flex items-center gap-4 hover:bg-white/10 transition-all hover:border-indigo-500/30 group/action">
+                                           <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center group-hover/action:scale-110 transition-transform"><Users className="w-6 h-6 text-indigo-400" /></div>
+                                           <div className="text-left">
+                                               <p className="text-white font-black text-sm uppercase tracking-widest">Foydalanuvchilar</p>
+                                               <p className="text-[10px] text-slate-500 font-medium">Ro'yxatni boshqarish</p>
+                                           </div>
+                                       </button>
+                                       <button onClick={() => navigate('/admin/requests')} className="p-6 bg-white/5 border border-white/5 rounded-3xl flex items-center gap-4 hover:bg-white/10 transition-all hover:border-amber-500/30 group/action">
+                                           <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center group-hover/action:scale-110 transition-transform"><ShieldAlert className="w-6 h-6 text-amber-400" /></div>
+                                           <div className="text-left">
+                                               <p className="text-white font-black text-sm uppercase tracking-widest">So'rovlar</p>
+                                               <p className="text-[10px] text-slate-500 font-medium">Barchasini ko'rish</p>
+                                           </div>
+                                       </button>
+                                   </div>
+
+                                   <button onClick={() => {
+                                      setProfileForm({
+                                         name: user?.name || '',
+                                         username: user?.username || '',
+                                         email: user?.email || '',
+                                         password: user?.password || '',
+                                         avatar: user?.avatar || '',
+                                         field: user?.field || '',
+                                         longBio: user?.longBio || '',
+                                         fieldDescription: user?.fieldDescription || '',
+                                         motivationQuote: user?.motivationQuote || '',
+                                         skills: user?.skills?.join(', ') || '',
+                                         socialLinks: user?.socialLinks || []
+                                      });
+                                      setIsEditingProfile(true);
+                                   }} className="group/btn relative px-8 py-5 md:px-10 bg-[#0a0a0c] text-white rounded-[2rem] font-black text-xs md:text-sm uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-4 border border-indigo-500/30 hover:border-indigo-400 shadow-[0_0_40px_rgba(99,102,241,0.2)] hover:shadow-[0_0_60px_rgba(99,102,241,0.4)] hover:scale-105 active:scale-95 overflow-hidden w-full sm:w-auto">
+                                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-500 ease-in-out"></div>
+                                      <Edit2 className="w-5 h-5 text-indigo-400 relative z-10" /> 
+                                      <span className="relative z-10 mt-0.5">Ma'lumotlarni Yangilash</span>
+                                   </button>
+                               </div>
+                           </div>
+                       </div>
+                   ) : (
+                   <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 md:gap-12 animate-in fade-in duration-500">
                       {/* Left Column: Avatar & Basic Info */}
-                      <div className={`${user?.role === 'admin' ? 'w-full' : 'lg:col-span-2'} space-y-6 min-w-0 bg-[#0f0f12] rounded-3xl border border-white/5 p-6 md:p-8 flex flex-col items-center text-center relative overflow-hidden group shadow-2xl h-fit`}>
+                      <div className="lg:col-span-2 space-y-6 min-w-0 bg-[#0f0f12] rounded-3xl border border-white/5 p-6 md:p-8 flex flex-col items-center text-center relative overflow-hidden group shadow-2xl h-fit">
                            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-indigo-500/10 to-transparent opacity-50"></div>
 
                            <div className="w-32 h-32 md:w-48 md:h-48 rounded-3xl bg-[#1a1a1f] border border-white/5 overflow-hidden shadow-2xl mb-6 md:mb-8 relative z-10 transition-transform duration-500">
@@ -918,6 +1048,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                  name: user?.name || '',
                                  username: user?.username || '',
                                  email: user?.email || '',
+                                  password: user?.password || '',
                                  avatar: user?.avatar || '',
                                  field: user?.field || '',
                                  longBio: user?.longBio || '',
@@ -970,6 +1101,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                            </div>
                         )}
                      </div>
+                   )}
 
                   {user?.role === 'curator' && (
                      <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[48px] border border-white/5 p-6 md:p-14 shadow-2xl">

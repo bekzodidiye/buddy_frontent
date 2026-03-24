@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { UserData, StudentProgress, Season, Notification } from '../types';
 import CustomDropdown from './CustomDropdown';
 
@@ -269,6 +270,147 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     const start = (monitoringPage - 1) * 5;
     return curatorsWithProgress.slice(start, start + 5);
   }, [curatorsWithProgress, monitoringPage]);
+
+  // ========== EXCEL EXPORT ==========
+  const [exportingSeasonId, setExportingSeasonId] = useState<string | null>(null);
+
+  const exportMonitoringToExcel = async (seasonId: string) => {
+    const activeSeason = seasons.find(s => s.id === seasonId);
+    if (!activeSeason) return;
+    setExportingSeasonId(seasonId);
+    const seasonName = `Mavsum #${activeSeason.number}`;
+    const maxWeeks = (activeSeason.durationInMonths || 3) * 4;
+
+    // Barcha kuratorlarni va ularning progresslarini olish
+    const allSeasonProgress = allProgress.filter(p => p.seasonId === seasonId);
+    const curatorIds = Array.from(new Set(allSeasonProgress.map(p => p.curatorId)));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Monitoring');
+
+    // 1-qator: Mavsum nomi
+    const titleRow = sheet.addRow([seasonName]);
+    titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: 'FF4F46E5' } };
+    titleRow.getCell(1).alignment = { horizontal: 'left' };
+    sheet.mergeCells(1, 1, 1, 1 + maxWeeks * 5);
+
+    // 2-qator: bo'sh
+    sheet.addRow([]);
+
+    let currentRow = 3;
+
+    curatorIds.forEach((curatorId, cIdx) => {
+      const curator = allUsers.find(u => u.id === curatorId);
+      const curatorName = curator?.name || 'Noma\'lum kurator';
+
+      // Kurator ismi (merged, bold)
+      const curatorRow = sheet.addRow([curatorName]);
+      curatorRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FF818CF8' } };
+      curatorRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E1B4B' } };
+      sheet.mergeCells(currentRow, 1, currentRow, 1 + maxWeeks * 5);
+      currentRow++;
+
+      // Header 1-qator: O'quvchi | 1-HAFTA (merged 5) | 2-HAFTA (merged 5) | ...
+      const header1: string[] = ["O'quvchi"];
+      for (let w = 1; w <= maxWeeks; w++) {
+        header1.push(`${w}-HAFTA`, '', '', '', '');
+      }
+      const h1Row = sheet.addRow(header1);
+      h1Row.getCell(1).font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      h1Row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } };
+      h1Row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      h1Row.getCell(1).border = { bottom: { style: 'thin', color: { argb: 'FF4338CA' } } };
+      // Merge hafta headerlari
+      for (let w = 0; w < maxWeeks; w++) {
+        const startCol = 2 + w * 5;
+        sheet.mergeCells(currentRow, startCol, currentRow, startCol + 4);
+        const cell = h1Row.getCell(startCol);
+        cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: w % 2 === 0 ? 'FF3730A3' : 'FF4338CA' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FF4338CA' } } };
+      }
+      currentRow++;
+
+      // Header 2-qator: (bo'sh) | Uchrashuv | Maqsad | Muammo | Yechim | Holat | ...
+      const header2: string[] = [''];
+      for (let w = 0; w < maxWeeks; w++) {
+        header2.push('Uchrashuv', 'Maqsad', 'Muammo', 'Yechim', 'Holat');
+      }
+      const h2Row = sheet.addRow(header2);
+      h2Row.eachCell((cell, colNumber) => {
+        cell.font = { bold: true, size: 9, color: { argb: 'FFA5B4FC' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E1B4B' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FF312E81' } } };
+      });
+      currentRow++;
+
+      // O'quvchilar satrlarini topish
+      const curatorProgress = allSeasonProgress.filter(p => p.curatorId === curatorId);
+      const studentNames: string[] = Array.from(new Set(curatorProgress.map(p => p.studentName)));
+
+      studentNames.forEach((name, sIdx) => {
+        const rowData: string[] = [name];
+        for (let w = 1; w <= maxWeeks; w++) {
+          const wp = curatorProgress.find(p => p.studentName === name && p.weekNumber === w);
+          if (wp) {
+            const meetDay = wp.meetingDay ? new Date(wp.meetingDay).toLocaleDateString('uz-UZ', { month: 'numeric', day: 'numeric' }) : '';
+            rowData.push(
+              meetDay,
+              wp.weeklyGoal || '',
+              wp.difficulty || '',
+              wp.solution || '',
+              wp.status || ''
+            );
+          } else {
+            rowData.push('', '', '', '', '');
+          }
+        }
+        const dataRow = sheet.addRow(rowData);
+        dataRow.eachCell((cell, colNumber) => {
+          cell.font = { size: 10, color: { argb: 'FFE2E8F0' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sIdx % 2 === 0 ? 'FF0F172A' : 'FF1E293B' } };
+          cell.alignment = { vertical: 'middle', wrapText: true };
+          if (colNumber === 1) {
+            cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+          }
+          // Holat ustunlari uchun rang
+          if (colNumber > 1 && (colNumber - 1) % 5 === 0) {
+            const val = cell.value?.toString() || '';
+            if (val === 'Hal qilindi') cell.font = { size: 10, bold: true, color: { argb: 'FF22C55E' } };
+            else if (val === 'Bajarmadi') cell.font = { size: 10, bold: true, color: { argb: 'FFEF4444' } };
+            else if (val === 'Bajarilmoqda') cell.font = { size: 10, bold: true, color: { argb: 'FF818CF8' } };
+            else if (val === 'Kutilmoqda') cell.font = { size: 10, bold: true, color: { argb: 'FFEAB308' } };
+          }
+        });
+        currentRow++;
+      });
+
+      // Kuratorlar orasida bo'sh satr
+      if (cIdx < curatorIds.length - 1) {
+        sheet.addRow([]);
+        currentRow++;
+      }
+    });
+
+    // Ustun kengliklarini sozlash
+    sheet.getColumn(1).width = 22;
+    for (let i = 2; i <= 1 + maxWeeks * 5; i++) {
+      sheet.getColumn(i).width = 14;
+    }
+
+    // Faylni yuklab olish
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `monitoring_mavsum_${activeSeason.number}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportingSeasonId(null);
+  };
 
   // Jadval uchun Progress holati
   const getProgressStatusStyle = (status: string) => {
@@ -727,7 +869,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 placeholder="Davomatni tanlang"
               />
 
-              <div className="flex items-center justify-end gap-3"><button onClick={() => { setMonitoringSearch(''); setMonitoringCuratorFilter('all'); setMonitoringStatusFilter('all'); setMonitoringAttendanceFilter('all'); }} className="px-6 py-4 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5">Tozalash</button></div>
+              <div className="flex items-center justify-end gap-3">
+                <button onClick={() => { setMonitoringSearch(''); setMonitoringCuratorFilter('all'); setMonitoringStatusFilter('all'); setMonitoringAttendanceFilter('all'); }} className="px-6 py-4 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5">Tozalash</button>
+              </div>
             </div>
             <div className="space-y-12">
               {paginatedCurators.length > 0 ? paginatedCurators.map(({ curator, progress }, index) => (
@@ -1134,6 +1278,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{season.startDate} da boshlangan</p>
                       </div>
                       <div className="flex items-center gap-3">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); exportMonitoringToExcel(season.id); }}
+                          disabled={exportingSeasonId === season.id}
+                          className="px-4 py-2.5 bg-emerald-600/10 hover:bg-emerald-600/25 text-emerald-400 hover:text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-emerald-500/20 flex items-center gap-2 shadow-lg shadow-emerald-500/5 opacity-0 group-hover/season:opacity-100 disabled:opacity-100"
+                          title={`Mavsum #${season.number} monitoringini yuklab olish`}
+                        >
+                          {exportingSeasonId === season.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                          Excel
+                        </button>
                         {seasons.length > 1 && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setSeasonToDelete(season.id); }}
