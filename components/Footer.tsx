@@ -11,7 +11,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   return (
     <footer className="bg-[#050505] border-t border-white/5 pt-14 md:pt-20 pb-8 md:pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12 mb-12 md:mb-16">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12 mb-12 md:mb-16">
           {/* Logo & About */}
           <div className="col-span-2 md:col-span-2 lg:col-span-1">
             <div className="flex items-center space-x-3 mb-5">
@@ -24,9 +24,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Bizning logotimizdagi mushuk va kuchukcha kabi biz ham bir-birimizga va sizga tayanchmiz. Birgalikda eng yaxshi natijalarga erishamiz!
             </p>
             <div className="flex space-x-3">
-              <a href="#" className="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-white/5 flex items-center justify-center hover:bg-purple-600 hover:text-white transition-all border border-white/5"><Instagram className="w-4 h-4 md:w-5 md:h-5" /></a>
-              <a href="#" className="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-white/5 flex items-center justify-center hover:bg-purple-600 hover:text-white transition-all border border-white/5"><Facebook className="w-4 h-4 md:w-5 md:h-5" /></a>
-              <a href="#" className="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-white/5 flex items-center justify-center hover:bg-purple-600 hover:text-white transition-all border border-white/5"><Youtube className="w-4 h-4 md:w-5 md:h-5" /></a>
+              <a href="#" className="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-white/5 flex items-center justify-center text-white hover:bg-purple-600 transition-all border border-white/5"><Instagram className="w-4 h-4 md:w-5 md:h-5 text-white" /></a>
+              <a href="#" className="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-white/5 flex items-center justify-center text-white hover:bg-purple-600 transition-all border border-white/5"><Facebook className="w-4 h-4 md:w-5 md:h-5 text-white" /></a>
+              <a href="#" className="w-10 h-10 md:w-12 md:h-12 rounded-[10px] bg-white/5 flex items-center justify-center text-white hover:bg-purple-600 transition-all border border-white/5"><Youtube className="w-4 h-4 md:w-5 md:h-5 text-white" /></a>
             </div>
           </div>
 
@@ -60,19 +60,6 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </ul>
           </div>
 
-          {/* Newsletter */}
-          <div className="col-span-2 md:col-span-1">
-            <h4 className="text-white font-black uppercase text-xs tracking-widest mb-5 md:mb-8">Haftalik Insight</h4>
-            <p className="text-slate-500 text-sm mb-4 md:mb-6">Texnologik yangiliklardan birinchilardan bo'lib xabardor bo'ling.</p>
-            <div className="flex space-x-2">
-              <input
-                type="email"
-                placeholder="Email..."
-                className="bg-white/5 border border-white/10 rounded-[10px] py-3 px-3 md:px-4 text-sm focus:outline-none focus:border-purple-500 w-full min-w-0"
-              />
-              <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 md:px-5 rounded-[10px] transition-all shadow-lg shadow-purple-600/20 font-bold shrink-0">OK</button>
-            </div>
-          </div>
         </div>
 
         <div className="pt-8 md:pt-10 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3">

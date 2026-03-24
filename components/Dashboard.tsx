@@ -177,10 +177,12 @@ const Dashboard: React.FC<DashboardProps> = ({
    useEffect(() => {
       localStorage.setItem('buddy_dashboard_season', selectedSeason);
    }, [selectedSeason]);
+   // Profile Editing State
+   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
    // Enhanced Body and Html scroll lock effect for Dashboard
    useEffect(() => {
-      if (selectedUserForView) {
+      if (selectedUserForView || isEditingProfile) {
          document.body.style.overflow = 'hidden';
          document.documentElement.style.overflow = 'hidden';
       } else {
@@ -191,10 +193,8 @@ const Dashboard: React.FC<DashboardProps> = ({
          document.body.style.overflow = '';
          document.documentElement.style.overflow = '';
       };
-   }, [selectedUserForView]);
+   }, [selectedUserForView, isEditingProfile]);
 
-   // Profile Editing State
-   const [isEditingProfile, setIsEditingProfile] = useState(false);
    const [showPassword, setShowPassword] = useState(false);
    const [editingProgress, setEditingProgress] = useState<StudentProgress | null>(null);
    const [newPlanForm, setNewPlanForm] = useState({
@@ -601,9 +601,12 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {activeTab === 'profile' && (
                <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-500">
-                  {isEditingProfile ? (
-                     // EDIT FORM - Redesigned to match screenshot
-                     <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[48px] border border-white/5 p-6 md:p-14 relative overflow-hidden bg-[#0a0a0c] shadow-2xl">
+                  {isEditingProfile && (
+                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+                        <div className="bg-[#0a0a0c] border border-white/10 rounded-3xl md:rounded-[48px] max-w-5xl w-full p-6 md:p-14 relative shadow-2xl my-auto opacity-100 scale-100 animate-in zoom-in-95">
+                           <button onClick={() => setIsEditingProfile(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-3 rounded-2xl bg-white/5 hover:bg-red-500/20 text-white hover:text-red-400 transition-colors z-[10] shadow-lg">
+                              <X className="w-5 h-5" />
+                           </button>
                         <div className="flex flex-col lg:flex-row gap-8 md:gap-10 items-start">
                            {/* Avatar */}
                            <div
@@ -624,8 +627,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                            {/* Top Fields */}
                            <div className="flex-1 space-y-6 w-full">
                               {/* Social Links - Moved to Top */}
-                              <div className="space-y-4">
-                                 <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest ml-1 flex items-center gap-2">
+                              {user?.role !== 'admin' && (
+                                 <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest ml-1 flex items-center gap-2">
                                     <Link2 className="w-3 h-3" /> IJTIMOIY TARMOQLAR (MAX 5)
                                  </label>
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -691,6 +695,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     )}
                                  </div>
                               </div>
+                           )}
 
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -732,11 +737,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                            </div>
                         </div>
 
-                        <div className="my-10 h-px bg-white/5"></div>
+                        {user?.role !== 'admin' && (
+                           <>
+                              <div className="my-10 h-px bg-white/5"></div>
 
-                        {/* Bottom Section */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                           <div className="space-y-10">
+                              {/* Bottom Section */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                                 <div className="space-y-10">
                               <div className="space-y-4">
                                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1 flex justify-between items-center">
                                     <span className="flex items-center gap-2"><Info className="w-3 h-3" /> TARJIMAI HOL (TAHRIR)</span>
@@ -826,8 +833,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     />
                                  </div>
                               )}
-                           </div>
-                        </div>
+                                 </div>
+                              </div>
+                           </>
+                        )}
                         
                         {/* Buttons moved below motivation quote */}
                         <div className="mt-10 flex flex-col sm:flex-row justify-end gap-3 w-full border-t border-white/5 pt-8">
@@ -841,11 +850,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                            </button>
                         </div>
                      </div>
-                  ) : (
-                     // STATIC VIEW
-                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 md:gap-12 animate-in fade-in duration-500">
-                        {/* Left Column: Avatar & Basic Info */}
-                        <div className="lg:col-span-2 space-y-6 min-w-0 bg-[#0f0f12] rounded-3xl border border-white/5 p-6 md:p-8 flex flex-col items-center text-center relative overflow-hidden group shadow-2xl h-fit">
+                     </div>
+                   )}
+
+                   {/* STATIC VIEW */}
+                   <div className={`grid grid-cols-1 gap-8 md:gap-12 animate-in fade-in duration-500 ${user?.role === 'admin' ? 'max-w-2xl mx-auto w-full' : 'lg:grid-cols-5'}`}>
+                      {/* Left Column: Avatar & Basic Info */}
+                      <div className={`${user?.role === 'admin' ? 'w-full' : 'lg:col-span-2'} space-y-6 min-w-0 bg-[#0f0f12] rounded-3xl border border-white/5 p-6 md:p-8 flex flex-col items-center text-center relative overflow-hidden group shadow-2xl h-fit`}>
                            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-indigo-500/10 to-transparent opacity-50"></div>
 
                            <div className="w-32 h-32 md:w-48 md:h-48 rounded-3xl bg-[#1a1a1f] border border-white/5 overflow-hidden shadow-2xl mb-6 md:mb-8 relative z-10 transition-transform duration-500">
@@ -853,19 +864,23 @@ const Dashboard: React.FC<DashboardProps> = ({
                            </div>
 
                            <h2 className="text-3xl font-black text-white tracking-tight mb-1 relative z-10 break-words w-full">{user?.name}</h2>
-                           <p className="text-indigo-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-2 relative z-10 px-4 py-1.5 bg-indigo-500/5 rounded-full border border-indigo-500/10 break-words w-full">{user?.field || 'Soha kiritilmagan'}</p>
+                           {user?.role !== 'admin' && (
+                              <p className="text-indigo-500 font-bold text-[10px] uppercase tracking-[0.2em] mb-2 relative z-10 px-4 py-1.5 bg-indigo-500/5 rounded-full border border-indigo-500/10 break-words w-full">{user?.field || 'Soha kiritilmagan'}</p>
+                           )}
                            <p className="text-slate-500 font-bold text-sm mb-6 relative z-10 truncate w-full">@{user?.username}</p>
 
-                           <div className="flex flex-wrap justify-center gap-2 mb-6 relative z-10">
-                              {user?.skills?.map((s, index) => (
-                                 <span key={`${s}-${index}`} className="px-4 py-1.5 bg-[#1a1a1f] text-slate-400 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/5 hover:border-indigo-500/30 transition-colors">
-                                    {s}
-                                 </span>
-                              ))}
-                           </div>
+                           {user?.role !== 'admin' && (
+                              <div className="flex flex-wrap justify-center gap-2 mb-6 relative z-10">
+                                 {user?.skills?.map((s, index) => (
+                                    <span key={`${s}-${index}`} className="px-4 py-1.5 bg-[#1a1a1f] text-slate-400 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/5 hover:border-indigo-500/30 transition-colors">
+                                       {s}
+                                    </span>
+                                 ))}
+                              </div>
+                           )}
 
                            {/* Social Links Display */}
-                           {user?.socialLinks && user.socialLinks.length > 0 && (
+                           {user?.role !== 'admin' && user?.socialLinks && user.socialLinks.length > 0 && (
                               <div className="flex flex-wrap justify-center gap-3 mb-10 relative z-10">
                                  {user.socialLinks.map((link, index) => (
                                     <a
@@ -918,8 +933,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
 
                         {/* Right Column: Details */}
-                        <div className="lg:col-span-3 space-y-6 flex flex-col h-full min-w-0">
-                           <div className="bg-[#0f0f12] rounded-3xl border border-white/5 p-6 md:p-10 flex-1 shadow-2xl">
+                        {user?.role !== 'admin' && (
+                           <div className="lg:col-span-3 space-y-6 flex flex-col h-full min-w-0">
+                              <div className="bg-[#0f0f12] rounded-3xl border border-white/5 p-6 md:p-10 flex-1 shadow-2xl">
                               <h4 className="text-2xl font-bold text-white mb-8 flex items-center gap-4">
                                  <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
                                     <Zap className="w-6 h-6 text-indigo-400" />
@@ -950,10 +966,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                               <p className="text-3xl md:text-4xl font-black text-white italic text-center leading-tight relative z-10 max-w-2xl whitespace-pre-wrap break-words">
                                  "{user?.motivationQuote || 'Harakatda barakat!'}"
                               </p>
+                              </div>
                            </div>
-                        </div>
+                        )}
                      </div>
-                  )}
 
                   {user?.role === 'curator' && (
                      <div className="bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-3xl md:rounded-[48px] border border-white/5 p-6 md:p-14 shadow-2xl">

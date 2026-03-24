@@ -19,6 +19,14 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
     if (urlMode === 'login' || urlMode === 'signup') return urlMode as any;
     return initialMode;
   });
+
+  useEffect(() => {
+    const newMode = (urlMode === 'login' || urlMode === 'signup') ? urlMode as 'login' | 'signup' : initialMode;
+    setMode(newMode);
+    setRegStep(1);
+    setError('');
+  }, [urlMode, initialMode]);
+
   const [role, setRole] = useState<'student' | 'curator' | 'admin'>('student');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

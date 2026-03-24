@@ -396,10 +396,11 @@ const App: React.FC = () => {
   const handleNavigateToAuth = (mode: 'login' | 'signup') => {
     if (mode === 'signup' && !isRegistrationOpen) {
       setAuthMode('login');
+      handleNavigate('auth', 'login');
     } else {
       setAuthMode(mode);
+      handleNavigate('auth', mode);
     }
-    handleNavigate('auth');
   };
 
   const handleLoginSuccess = (userData: UserData) => {
@@ -937,7 +938,7 @@ const App: React.FC = () => {
           <Route path="/contact" element={<div className="pt-20"><Contact /></div>} />
           <Route path="/dashboard/:activeTab?" element={
             user ? (
-              user.role === 'admin' ? (
+              user.role === 'admin' && window.location.pathname !== '/dashboard/profile' ? (
                 <Navigate to="/admin" replace />
               ) : (
                 <div className="pt-20">
