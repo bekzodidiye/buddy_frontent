@@ -3,9 +3,9 @@ import axios from 'axios';
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 // Agar lokalda bo'lsa 127.0.0.1 ga, aks holda Render-ga ulanadi
-const API_URL = isLocal ? 'http://127.0.0.1:8000/api/v1/' : 'https://buddy-backend-v1-1.onrender.com/api/v1/';
+const API_URL = isLocal ? 'http://127.0.0.1:8000/api/v1/' : 'https://buddy-backend-v1-hdwk.onrender.com/api/v1/';
 
-export const MEDIA_BASE_URL = isLocal ? 'http://127.0.0.1:8000' : 'https://buddy-backend-v1-1.onrender.com';
+export const MEDIA_BASE_URL = isLocal ? 'http://127.0.0.1:8000' : 'https://buddy-backend-v1-hdwk.onrender.com';
 export const WS_URL = API_URL.replace('http', 'ws').replace('/api/v1/', '/ws/');
 
 const api = axios.create({
