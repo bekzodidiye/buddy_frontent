@@ -78,7 +78,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialMode, onBack, onSuccess, isR
         }
         setIsLoading(true);
         try {
-          const res = await api.post('auth/validate-Username/', {
+          const res = await api.post('auth/validate-intra/', {
             username: formData.username,
             password: formData.password
           });
